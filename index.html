@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#648da7">
+  <meta name="description" content="個管照顧計畫產生器：選服務、貼照專計畫簡述、整理成固定格式個管計畫。">
+  <title>個管照顧計畫產生器</title>
+  <link rel="icon" href="icon.png" type="image/png">
+  <link rel="stylesheet" href="styles.css?v=2">
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">長照個管工具</p>
+      <h1>個管照顧計畫產生器</h1>
+      <p class="subtitle">先選好服務，再貼上照專計畫簡述；服務碼、單位數與金額由系統固定，AI 只整理文字內容。</p>
+    </div>
+    <div class="top-actions">
+      <button id="sampleBtn" class="ghost-button" type="button">載入範例</button>
+      <button id="resetBtn" class="ghost-button" type="button">清空</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="modeBanner" class="mode-banner demo">
+      <strong>網頁測試版</strong><span>不連線照管平台。AI 尚未啟用時，會使用示範資料呈現最終格式。</span>
+    </div>
+
+    <section class="card" id="step1">
+      <div class="section-heading"><div><p class="step">STEP 1</p><h2>基本核定資料</h2></div></div>
+      <div class="two-col">
+        <label><span class="field-label">身分別</span>
+          <select id="identitySelect" class="input-control">
+            <option value="第三類（一般戶）">第三類（一般戶）</option>
+            <option value="第二類（中低收入戶）">第二類（中低收入戶）</option>
+            <option value="第一類（長照低收入戶）">第一類（長照低收入戶）</option>
+          </select>
+        </label>
+        <label><span class="field-label">失能等級 CMS</span>
+          <select id="cmsSelect" class="input-control"></select>
+        </label>
+      </div>
+      <label class="inline-check foreign-row">
+        <input id="foreignEnabled" type="checkbox">
+        <span>聘用外籍看護，僅能使用30%額度</span>
+        <input id="foreignAmount" class="inline-number" type="number" min="0" placeholder="額度">
+        <span>元/月</span>
+      </label>
+      <div class="summary-grid">
+        <div class="summary-box"><span>核定額度</span><strong id="budgetAmount">0</strong><small>元 / 月</small></div>
+        <div class="summary-box"><span>部分負擔</span><strong id="copayRate">16%</strong><small id="identityLabel">一般戶</small></div>
+      </div>
+    </section>
+
+    <section class="card" id="step2">
+      <div class="section-heading"><div><p class="step">STEP 2</p><h2>選擇服務項目</h2></div><span id="selectedCount" class="count-badge">0 項</span></div>
+      <label class="field-label" for="serviceSearch">搜尋服務代碼或名稱</label>
+      <input id="serviceSearch" class="input-control" type="search" placeholder="例如：BA02、沐浴、陪伴、CA07">
+      <div class="quick-filter">
+        <button class="filter-chip active" data-filter="all" type="button">全部</button>
+        <button class="filter-chip" data-filter="care" type="button">照顧服務</button>
+        <button class="filter-chip" data-filter="professional" type="button">專業服務</button>
+        <button class="filter-chip" data-filter="daycare" type="button">日照／社區</button>
+      </div>
+      <div id="serviceList" class="service-list"></div>
+    </section>
+
+    <section class="card" id="step3">
+      <div class="section-heading"><div><p class="step">STEP 3</p><h2>已選服務與額度</h2></div><button id="clearServicesBtn" class="text-button" type="button">清除服務</button></div>
+      <div id="approvedList" class="approved-list empty-state">尚未加入服務項目</div>
+      <section class="result-panel">
+        <div class="result-row"><span>預估每月服務總額</span><strong><span id="serviceTotal">0</span> 元</strong></div>
+        <div class="result-row"><span>預估部分負擔</span><strong><span id="copayTotal">0</span> 元</strong></div>
+        <div class="result-row"><span>額度使用率</span><strong id="budgetUsage">0%</strong></div>
+        <div class="result-divider"></div>
+        <div class="result-row large"><span>剩餘額度</span><strong id="remainingAmount">0 元</strong></div>
+        <div class="progress-track"><div id="budgetProgress" class="progress-bar" style="width:0%"></div></div>
+        <p id="budgetHint" class="budget-hint">目前尚未使用核定額度。</p>
+      </section>
+    </section>
+
+    <section class="card" id="step4">
+      <div class="section-heading"><div><p class="step">STEP 4</p><h2>其他服務</h2></div></div>
+      <div class="option-card">
+        <label class="inline-check"><input id="transportEnabled" type="checkbox"><strong>交通接送</strong></label>
+        <div class="two-col option-fields">
+          <input id="transportUnit" class="input-control" placeholder="照會單位（選填）">
+          <input id="transportPhone" class="input-control" placeholder="電話（選填）">
+        </div>
+      </div>
+      <div class="option-card">
+        <label class="inline-check"><input id="aidEnabled" type="checkbox"><strong>輔具／居家無障礙環境改善</strong></label>
+        <div class="two-col option-fields">
+          <input id="aidPeriod" class="input-control" placeholder="起訖日（選填）">
+          <input id="aidQuota" class="input-control" type="number" min="0" placeholder="3年額度（元）">
+        </div>
+        <div id="aidItems" class="dynamic-list"></div>
+        <button id="addAidBtn" class="secondary-button small" type="button">＋ 新增輔具項目</button>
+      </div>
+      <div class="option-card">
+        <div class="inline-check"><input id="respiteEnabled" type="checkbox"><strong>喘息服務</strong></div>
+        <div id="respiteList" class="respite-list"></div>
+      </div>
+      <div class="option-card">
+        <label class="inline-check"><input id="mealEnabled" type="checkbox"><strong>餐飲服務</strong></label>
+        <div class="two-col option-fields">
+          <input id="mealCount" class="input-control" type="number" min="0" placeholder="餐／月，例如 62">
+          <input id="mealUnit" class="input-control" placeholder="送餐單位（選填）">
+        </div>
+        <p class="format-preview">產出格式：<code>OT01[營養餐飲](10801)*62單位/月</code></p>
+      </div>
+      <label><span class="field-label">其他資源運用</span><input id="otherResource" class="input-control" placeholder="沒有可留空，產出為「無」"></label>
+    </section>
+
+    <section class="card" id="step5">
+      <div class="section-heading"><div><p class="step">STEP 5</p><h2>服務單位選擇 <span class="required-badge">必填</span></h2></div></div>
+      <p class="helper">一定要選擇其中一種，並填寫對應單位名稱，否則不能產出。</p>
+      <label class="unit-option"><input type="radio" name="unitMode" value="designated"><div><strong>指定單位</strong><span>案家已有指定服務單位</span></div></label>
+      <input id="designatedUnit" class="input-control nested-input" placeholder="請輸入指定單位名稱" disabled>
+      <label class="unit-option"><input type="radio" name="unitMode" value="rotation"><div><strong>不指定服務單位</strong><span>依輪派原則進行照會</span></div></label>
+      <input id="rotationUnit" class="input-control nested-input" placeholder="請輸入輪派單位名稱" disabled>
+    </section>
+
+    <section class="card" id="step6">
+      <div class="section-heading"><div><p class="step">STEP 6</p><h2>服務介入後改變</h2></div></div>
+      <select id="interventionSelect" class="input-control">
+        <option value="尚未使用">尚未使用</option>
+        <option value="穩定持續使用服務">穩定持續使用服務</option>
+      </select>
+    </section>
+
+    <section class="card" id="step7">
+      <div class="section-heading"><div><p class="step">STEP 7</p><h2>貼上照專計畫簡述</h2></div><span id="charCount" class="count-badge">0 字</span></div>
+      <p class="helper">直接從照管複製後貼上即可；本網頁本身不登入、不控制照管平台。</p>
+      <textarea id="sourceText" class="source-textarea" placeholder="請貼上完整照專計畫簡述……"></textarea>
+    </section>
+
+    <section class="generate-card" id="step8">
+      <div><p class="step">STEP 8</p><h2>產生個管照顧計畫</h2><p id="generateHint">服務資料由網頁固定，AI 只整理照專內容與各服務執行目的。</p></div>
+      <button id="generateBtn" class="primary-button" type="button">AI 產生個管計畫</button>
+    </section>
+
+    <section id="outputSection" class="card output-card hidden">
+      <div class="section-heading"><div><p class="step">完成</p><h2>個管照顧計畫</h2></div><div class="output-actions"><button id="copyBtn" class="secondary-button" type="button">複製結果</button></div></div>
+      <div id="outputStatus" class="output-status"></div>
+      <textarea id="outputText" class="output-textarea"></textarea>
+    </section>
+
+    <p class="footer-note">GitHub Pages 只負責畫面與資料整理。正式 AI 呼叫建議交給 Cloudflare Worker，OpenAI API Key 不放在前端。</p>
+  </main>
+</div>
+<script src="data.js?v=2"></script>
+<script src="config.js?v=2"></script>
+<script src="app.js?v=2"></script>
+</body>
+</html>
