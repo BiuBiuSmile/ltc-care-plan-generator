@@ -5,18 +5,18 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
 <meta content="#648da7" name="theme-color"/>
-<meta content="個管照顧計畫產生器品質檢核版：固定服務資料、彈性文字整理，產出後自動核對服務碼、月單位、CMS、金額、照會單位與來源佐證。" name="description"/>
-<title>個管照顧計畫產生器｜v7 品質檢核版</title>
+<meta content="個管照顧計畫產生器 v8 實務穩定版：全面服務防呆、局部 AI 重寫、可編輯結果與 AI 原稿復原。" name="description"/>
+<title>個管照顧計畫產生器｜v8 實務穩定版</title>
 <link href="icon.png" rel="icon" type="image/png"/>
-<link href="styles.css?v=7" rel="stylesheet"/>
+<link href="styles.css?v=8" rel="stylesheet"/>
 </head>
 <body>
 <div class="app-shell">
 <header class="topbar">
 <div>
-<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v7 品質檢核</span>
+<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v8 實務穩定</span>
 <h1>個管照顧計畫產生器</h1>
-<p class="subtitle">先選好服務，再貼上照專計畫簡述；AI 完成後會自動核對固定資料與來源佐證，將需要人工確認的項目直接標示出來。</p>
+<p class="subtitle">先選好服務，再貼上照專計畫簡述；系統會先做服務資料防呆，AI 完成後可局部重寫、直接編輯，並保留 AI 原稿供復原與重新檢核。</p>
 </div>
 <div class="top-actions">
 <button class="ghost-button" id="sampleBtn" type="button">載入範例</button>
@@ -150,8 +150,20 @@
 </div>
 <button class="secondary-button" id="errorRetryBtn" type="button">重新產生</button>
 </section><section class="card output-card hidden" id="outputSection">
-<div class="section-heading"><div><p class="step">完成</p><h2>個管照顧計畫</h2></div><div class="output-actions"><button class="secondary-button" id="retryBtn" type="button">重新產生</button><button class="secondary-button" id="copyBtn" type="button">複製結果</button></div></div>
-<div class="output-status" id="outputStatus"></div>
+<div class="section-heading"><div><p class="step">完成</p><h2>個管照顧計畫</h2></div><div class="output-actions"><button class="secondary-button" id="retryBtn" type="button">重新產生</button><button class="secondary-button" id="restoreDraftBtn" type="button" disabled>復原 AI 原稿</button><button class="secondary-button" id="copyBtn" type="button">複製結果</button></div></div>
+<div class="output-status-row"><div class="output-status" id="outputStatus"></div><span class="draft-state ai" id="draftState">AI 原稿</span></div>
+<section class="partial-rewrite-panel" id="partialRewritePanel">
+<div class="partial-rewrite-head"><div><p class="step">PARTIAL REWRITE</p><h3>局部 AI 重寫</h3><p class="helper">只重寫指定區塊；服務碼、月單位、金額、CMS 與照會單位仍由程式固定。若目前已有手動修改，執行前會先提醒。</p></div></div>
+<div class="partial-rewrite-actions">
+<button class="secondary-button small partial-rewrite-btn" data-section="care_analysis" type="button">照顧面</button>
+<button class="secondary-button small partial-rewrite-btn" data-section="economic_analysis" type="button">經濟面</button>
+<button class="secondary-button small partial-rewrite-btn" data-section="environment_analysis" type="button">環境面</button>
+<button class="secondary-button small partial-rewrite-btn" data-section="social_analysis" type="button">社交面</button>
+<button class="secondary-button small partial-rewrite-btn" data-section="strengths_analysis" type="button">家庭優勢</button>
+<button class="secondary-button small partial-rewrite-btn" data-section="problem_items" type="button">照顧問題清單</button>
+<button class="secondary-button small partial-rewrite-btn" data-section="service_execution" type="button">服務執行說明</button>
+</div>
+</section>
 <section class="quality-panel" id="qualityPanel">
 <div class="quality-head">
 <div>
@@ -167,7 +179,7 @@
 <div class="quality-summary" id="qualitySummary"></div>
 <div class="quality-list" id="qualityList"></div>
 </section>
-<label class="output-edit-label" for="outputText">產出結果可直接修改；修改後請按「重新檢核」。</label>
+<label class="output-edit-label" for="outputText">產出結果可直接修改；手動修改後會保留 AI 原稿，可隨時復原。修改後請按「重新檢核」。</label>
 <textarea class="output-textarea" id="outputText"></textarea>
 </section><p class="footer-note">GitHub Pages 只負責畫面與資料整理；AI 透過 Cloudflare Worker 呼叫，OpenAI API Key 不會放在前端；服務碼、單位數與金額仍由網頁固定。</p></div><aside aria-label="桌面版快速導覽" class="desktop-sidebar"><nav aria-label="填寫步驟" class="sidebar-card desktop-step-nav"><h3>填寫進度</h3><p class="sidebar-note">桌面版可直接由右側快速跳到各區塊。</p><a class="sidebar-step" href="#step1"><span class="sidebar-step-no">1</span><span>基本核定資料</span></a><a class="sidebar-step" href="#step2"><span class="sidebar-step-no">2</span><span>選擇服務項目</span></a><a class="sidebar-step" href="#step3"><span class="sidebar-step-no">3</span><span>已選服務與額度</span></a><a class="sidebar-step" href="#step4"><span class="sidebar-step-no">4</span><span>其他服務</span></a><a class="sidebar-step" href="#step5"><span class="sidebar-step-no">5</span><span>服務單位選擇</span></a><a class="sidebar-step" href="#step6"><span class="sidebar-step-no">6</span><span>撰寫模式／介入改變</span></a><a class="sidebar-step" href="#step7"><span class="sidebar-step-no">7</span><span>貼上照專計畫</span></a><a class="sidebar-step" href="#step8"><span class="sidebar-step-no">8</span><span>產生個管計畫</span></a></nav><aside aria-label="已選服務快速摘要" class="sidebar-card floating-summary" id="floatingSummary">
 <div class="floating-summary-head"><strong>已選服務</strong><span id="floatingCount">0 項</span></div>
@@ -202,8 +214,8 @@
 </div>
 </div>
 <div aria-live="polite" class="toast hidden" id="toast" role="status"></div>
-<script src="data.js?v=7"></script>
-<script src="config.js?v=7"></script>
-<script src="app.js?v=7"></script>
+<script src="data.js?v=8"></script>
+<script src="config.js?v=8"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

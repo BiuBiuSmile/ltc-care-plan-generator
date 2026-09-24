@@ -19,6 +19,17 @@ const state = {
 let generationController = null;
 let toastTimer = null;
 let lastQualityContext = null;
+let aiDraftText = "";
+
+const PARTIAL_SECTION_LABELS = {
+  care_analysis: "照顧面",
+  economic_analysis: "經濟面",
+  environment_analysis: "環境面",
+  social_analysis: "社交面",
+  strengths_analysis: "個案／家庭優勢",
+  problem_items: "照顧問題清單",
+  service_execution: "服務執行說明",
+};
 
 const identityInfo = {
   "第三類（一般戶）": { rate: 16, key: "general", label: "一般戶" },
@@ -88,6 +99,55 @@ function markDirty() {
 
 function markClean() {
   state.dirty = false;
+}
+
+function hasTextValue(selector) {
+  const el = $(selector);
+  return Boolean(el && String(el.value || "").trim());
+}
+
+function setCheckboxChecked(selector, checked = true) {
+  const el = $(selector);
+  if (el) el.checked = Boolean(checked);
+}
+
+function aidHasData() {
+  return state.aidItems.some((x) => String(x.item || "").trim() || String(x.subsidy || "").trim()) ||
+    hasTextValue("#aidPeriod") || hasTextValue("#aidQuota") || hasTextValue("#aidUsedTotal");
+}
+
+function outputIsEdited() {
+  if (!aiDraftText) return false;
+  return $("#outputText").value !== aiDraftText;
+}
+
+function updateDraftState() {
+  const badge = $("#draftState");
+  const restore = $("#restoreDraftBtn");
+  if (!badge || !restore) return;
+  const edited = outputIsEdited();
+  badge.className = "draft-state " + (edited ? "edited" : "ai");
+  badge.textContent = edited ? "已手動修改" : "AI 原稿";
+  restore.disabled = !edited || !aiDraftText;
+}
+
+function setAiDraft(text) {
+  aiDraftText = String(text || "");
+  $("#outputText").value = aiDraftText;
+  updateDraftState();
+}
+
+function confirmAndClear(label, hasData, clearFn, checkboxSelector) {
+  if (!hasData) {
+    clearFn();
+    return true;
+  }
+  if (!confirm(`關閉「${label}」會清除已填資料，確定要關閉嗎？`)) {
+    setCheckboxChecked(checkboxSelector, true);
+    return false;
+  }
+  clearFn();
+  return true;
 }
 
 function showToast(message) {
@@ -177,19 +237,78 @@ function bind() {
     if (!custom) $("#interventionCustom").value = "";
   });
 
-  // 喘息服務：勾選任一 GA 項目時，自動啟用「喘息服務」主開關，避免資料狀態互相矛盾。
+  // v8：所有有「主開關＋子欄位」的服務採同一套狀態同步，避免畫面有資料但送出時被判定未啟用。
+  ["#transportUnit", "#transportPhone"].forEach((sel) => $(sel).addEventListener("input", () => {
+    if (hasTextValue(sel)) $("#transportEnabled").checked = true;
+  }));
+  $("#transportEnabled").addEventListener("change", () => {
+    if ($("#transportEnabled").checked) return;
+    confirmAndClear("交通接送", hasTextValue("#transportUnit") || hasTextValue("#transportPhone"), () => {
+      $("#transportUnit").value = "";
+      $("#transportPhone").value = "";
+    }, "#transportEnabled");
+  });
+
+  ["#aidPeriod", "#aidQuota", "#aidUsedTotal"].forEach((sel) => $(sel).addEventListener("input", () => {
+    if (hasTextValue(sel)) $("#aidEnabled").checked = true;
+  }));
+  $("#aidEnabled").addEventListener("change", () => {
+    if ($("#aidEnabled").checked) return;
+    confirmAndClear("輔具／居家無障礙環境改善", aidHasData(), () => {
+      $("#aidPeriod").value = "";
+      $("#aidQuota").value = "";
+      $("#aidUsedTotal").value = "";
+      state.aidItems = [];
+      renderAidItems();
+    }, "#aidEnabled");
+  });
+
   $("#respiteList").addEventListener("change", (e) => {
     if (!e.target.matches('input[type="checkbox"][data-code]')) return;
     const anySelected = Boolean($("#respiteList").querySelector('input[type="checkbox"][data-code]:checked'));
     if (anySelected) $("#respiteEnabled").checked = true;
   });
+  $("#respiteList").addEventListener("input", (e) => {
+    if (!e.target.matches(".respite-count")) return;
+    const code = e.target.dataset.count;
+    if (!String(e.target.value || "").trim() || !code) return;
+    const checkbox = $(`[data-code="${code}"]`);
+    if (checkbox) checkbox.checked = true;
+    $("#respiteEnabled").checked = true;
+  });
   $("#respiteEnabled").addEventListener("change", () => {
-    // 關閉主開關時同步取消子項目，避免畫面顯示「未啟用」但仍殘留 GA09 等核定碼。
     if ($("#respiteEnabled").checked) return;
-    $("#respiteList").querySelectorAll('input[type="checkbox"][data-code]').forEach((x) => { x.checked = false; });
+    const selected = Boolean($("#respiteList").querySelector('input[type="checkbox"][data-code]:checked'));
+    const hasCounts = Array.from($("#respiteList").querySelectorAll(".respite-count")).some((x) => String(x.value || "").trim());
+    confirmAndClear("喘息服務", selected || hasCounts, () => {
+      $("#respiteList").querySelectorAll('input[type="checkbox"][data-code]').forEach((x) => { x.checked = false; });
+      $("#respiteList").querySelectorAll(".respite-count").forEach((x) => { x.value = ""; });
+    }, "#respiteEnabled");
+  });
+
+  ["#mealCount", "#mealUnit"].forEach((sel) => $(sel).addEventListener("input", () => {
+    if (hasTextValue(sel)) $("#mealEnabled").checked = true;
+  }));
+  $("#mealEnabled").addEventListener("change", () => {
+    if ($("#mealEnabled").checked) return;
+    confirmAndClear("餐飲服務", hasTextValue("#mealCount") || hasTextValue("#mealUnit"), () => {
+      $("#mealCount").value = "";
+      $("#mealUnit").value = "";
+    }, "#mealEnabled");
+  });
+
+  $("#foreignAmount").addEventListener("input", () => {
+    if (hasTextValue("#foreignAmount")) $("#foreignEnabled").checked = true;
+  });
+  $("#foreignEnabled").addEventListener("change", () => {
+    if ($("#foreignEnabled").checked) return;
+    confirmAndClear("聘用外籍看護 30% 額度", hasTextValue("#foreignAmount"), () => {
+      $("#foreignAmount").value = "";
+    }, "#foreignEnabled");
   });
 
   $("#addAidBtn").addEventListener("click", () => {
+    $("#aidEnabled").checked = true;
     state.aidItems.push({ item: "", subsidy: "" });
     markDirty();
     renderAidItems();
@@ -203,8 +322,13 @@ function bind() {
   $("#retryBtn").addEventListener("click", generate);
   $("#errorRetryBtn").addEventListener("click", generate);
   $("#copyBtn").addEventListener("click", copyOutput);
+  $("#restoreDraftBtn").addEventListener("click", restoreAiDraft);
   $("#qualityRecheckBtn").addEventListener("click", recheckQuality);
-  $("#outputText").addEventListener("input", markQualityStale);
+  $("#outputText").addEventListener("input", () => {
+    markQualityStale();
+    updateDraftState();
+  });
+  $$(".partial-rewrite-btn").forEach((btn) => btn.addEventListener("click", () => regenerateSection(btn.dataset.section, btn)));
   $("#sampleBtn").addEventListener("click", loadSample);
   $("#resetBtn").addEventListener("click", resetAll);
   $("#floatingGoBtn").addEventListener("click", () => $("#step3").scrollIntoView({ behavior: "smooth" }));
@@ -396,8 +520,8 @@ function renderAidItems() {
     row.className = "aid-row";
     row.innerHTML = `<input class="input-control" placeholder="輔具項目" value="${escapeHtml(a.item)}"><input class="input-control" type="number" min="0" placeholder="補助金額" value="${escapeHtml(a.subsidy)}"><button class="remove-mini" type="button">移除</button>`;
     const inputs = row.querySelectorAll("input");
-    inputs[0].addEventListener("input", (e) => { a.item = e.target.value; markDirty(); });
-    inputs[1].addEventListener("input", (e) => { a.subsidy = e.target.value; markDirty(); });
+    inputs[0].addEventListener("input", (e) => { a.item = e.target.value; if (a.item.trim()) $("#aidEnabled").checked = true; markDirty(); });
+    inputs[1].addEventListener("input", (e) => { a.subsidy = e.target.value; if (String(a.subsidy).trim()) $("#aidEnabled").checked = true; markDirty(); });
     row.querySelector("button").addEventListener("click", () => {
       state.aidItems.splice(i, 1);
       markDirty();
@@ -425,7 +549,7 @@ function collect() {
     identity: ident,
     cms_level: currentCMS(),
     professional_30_percent: {
-      enabled: $("#foreignEnabled").checked,
+      enabled: $("#foreignEnabled").checked || hasTextValue("#foreignAmount"),
       amount: $("#foreignAmount").value.trim(),
     },
     selected_services: state.items.map((it) => {
@@ -443,12 +567,12 @@ function collect() {
       };
     }),
     transport: {
-      enabled: $("#transportEnabled").checked,
+      enabled: $("#transportEnabled").checked || hasTextValue("#transportUnit") || hasTextValue("#transportPhone"),
       unit: $("#transportUnit").value.trim(),
       phone: $("#transportPhone").value.trim(),
     },
     assistive_device: {
-      enabled: $("#aidEnabled").checked,
+      enabled: $("#aidEnabled").checked || aidHasData(),
       period: $("#aidPeriod").value.trim(),
       quota: $("#aidQuota").value.trim(),
       used_total: $("#aidUsedTotal").value.trim(),
@@ -463,7 +587,7 @@ function collect() {
       items: respiteItems,
     },
     meal: {
-      enabled: $("#mealEnabled").checked,
+      enabled: $("#mealEnabled").checked || hasTextValue("#mealCount") || hasTextValue("#mealUnit"),
       count_per_month: $("#mealCount").value.trim(),
       unit: $("#mealUnit").value.trim(),
     },
@@ -502,6 +626,11 @@ function validate(data) {
   if (data.unit_selection.mode === "rotation" && !data.unit_selection.rotation_unit) {
     alert("已選擇「不指定服務單位」，請填寫輪派單位。");
     $("#rotationUnit").focus();
+    return false;
+  }
+  if (data.assistive_device.enabled && !data.assistive_device.items.length) {
+    alert("已啟用輔具／居家無障礙環境改善服務，請至少新增一項輔具項目；若本次沒有申請，請關閉此項目。");
+    $("#step4").scrollIntoView({ behavior: "smooth" });
     return false;
   }
   if (data.respite.enabled && !data.respite.items.length) {
@@ -1218,7 +1347,7 @@ async function generate() {
       intervention_change: currentIntervention(),
     });
     const renderedPlan = renderPlan(ai, d, currentIntervention());
-    $("#outputText").value = renderedPlan;
+    setAiDraft(renderedPlan);
     lastQualityContext = {
       ai,
       data: d,
@@ -1241,6 +1370,83 @@ async function generate() {
     $("#errorRetryBtn").disabled = false;
     $("#generateHint").textContent = "固定資料由網頁控制；AI 依撰寫模式整理照顧問題分析、問題清單與服務執行目的。";
   }
+}
+
+function mergePartialAi(baseAi, partialAi, section) {
+  const merged = { ...(baseAi || {}) };
+  if (!partialAi || typeof partialAi !== "object") return merged;
+  if (Object.prototype.hasOwnProperty.call(partialAi, section)) merged[section] = partialAi[section];
+
+  const currentEvidence = (baseAi && typeof baseAi.source_evidence === "object" && baseAi.source_evidence) ? baseAi.source_evidence : {};
+  const partialEvidence = (partialAi && typeof partialAi.source_evidence === "object" && partialAi.source_evidence) ? partialAi.source_evidence : {};
+  merged.source_evidence = { ...currentEvidence };
+  if (Object.prototype.hasOwnProperty.call(partialEvidence, section)) merged.source_evidence[section] = partialEvidence[section];
+  return merged;
+}
+
+async function regenerateSection(section, button) {
+  if (!PARTIAL_SECTION_LABELS[section]) return;
+  if (!lastQualityContext) {
+    alert("請先產生一份完整計畫，再使用局部重寫。");
+    return;
+  }
+  const d = collect();
+  if (!validate(d)) return;
+
+  if (outputIsEdited()) {
+    const ok = confirm(`目前計畫已有手動修改。重新整理「${PARTIAL_SECTION_LABELS[section]}」後，系統會依最新 AI 結果重新組版，手動修改內容將被 AI 原稿取代。
+
+確定繼續嗎？`);
+    if (!ok) return;
+  }
+
+  clearGenerateError();
+  const buttons = $$(".partial-rewrite-btn");
+  buttons.forEach((x) => { x.disabled = true; });
+  if (button) {
+    button.classList.add("is-loading");
+    button.textContent = `${PARTIAL_SECTION_LABELS[section]}整理中…`;
+  }
+  setLoading(true, `正在重新整理「${PARTIAL_SECTION_LABELS[section]}」，其他區塊會保留…`);
+
+  try {
+    const partial = await callAI({
+      source_text: $("#sourceText").value.trim(),
+      change_form_data: d,
+      writing_mode: currentWritingMode(),
+      intervention_change: currentIntervention(),
+      regenerate_section: section,
+    });
+    const mergedAi = mergePartialAi(lastQualityContext.ai, partial, section);
+    const renderedPlan = renderPlan(mergedAi, d, currentIntervention());
+    setAiDraft(renderedPlan);
+    lastQualityContext = {
+      ai: mergedAi,
+      data: d,
+      sourceText: $("#sourceText").value.trim(),
+    };
+    performQualityCheck();
+    $("#outputStatus").textContent = `已重新整理「${PARTIAL_SECTION_LABELS[section]}」；其他 AI 區塊沿用上一版內容。`;
+    showToast(`已重新整理${PARTIAL_SECTION_LABELS[section]}`);
+  } catch (e) {
+    showGenerateError(e);
+  } finally {
+    setLoading(false);
+    buttons.forEach((x) => { x.disabled = false; });
+    if (button) {
+      button.classList.remove("is-loading");
+      button.textContent = PARTIAL_SECTION_LABELS[section];
+    }
+  }
+}
+
+function restoreAiDraft() {
+  if (!aiDraftText || !outputIsEdited()) return;
+  if (!confirm("確定要放棄目前手動修改，復原為最近一次 AI 原稿嗎？")) return;
+  $("#outputText").value = aiDraftText;
+  updateDraftState();
+  performQualityCheck();
+  showToast("已復原 AI 原稿");
 }
 
 async function copyOutput() {
@@ -1312,6 +1518,8 @@ function resetAll(confirmFirst = true) {
   $("#charCount").classList.remove("danger-badge");
   $("#outputSection").classList.add("hidden");
   lastQualityContext = null;
+  aiDraftText = "";
+  updateDraftState();
   $("#qualityOverall").className = "quality-overall pending";
   $("#qualityOverall").textContent = "尚未檢核";
   $("#qualitySummary").innerHTML = "";
