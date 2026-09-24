@@ -7,7 +7,7 @@
   <meta name="description" content="個管照顧計畫產生器：選服務、貼照專計畫簡述、整理成固定格式個管計畫。">
   <title>個管照顧計畫產生器</title>
   <link rel="icon" href="icon.png" type="image/png">
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
 <div class="app-shell">
@@ -92,9 +92,10 @@
       </div>
       <div class="option-card">
         <label class="inline-check"><input id="aidEnabled" type="checkbox"><strong>輔具／居家無障礙環境改善</strong></label>
-        <div class="two-col option-fields">
+        <div class="three-col option-fields">
           <input id="aidPeriod" class="input-control" placeholder="起訖日（選填）">
           <input id="aidQuota" class="input-control" type="number" min="0" placeholder="3年額度（元）">
+          <input id="aidUsedTotal" class="input-control" type="number" min="0" placeholder="已核銷總金額（選填）">
         </div>
         <div id="aidItems" class="dynamic-list"></div>
         <button id="addAidBtn" class="secondary-button small" type="button">＋ 新增輔具項目</button>
@@ -142,17 +143,49 @@
       <button id="generateBtn" class="primary-button" type="button">AI 產生個管計畫</button>
     </section>
 
+    <section id="generateError" class="error-panel hidden" aria-live="polite">
+      <div>
+        <strong>產生失敗</strong>
+        <p id="generateErrorMessage"></p>
+        <code id="generateErrorDetail"></code>
+      </div>
+      <button id="errorRetryBtn" class="secondary-button" type="button">重新產生</button>
+    </section>
+
     <section id="outputSection" class="card output-card hidden">
-      <div class="section-heading"><div><p class="step">完成</p><h2>個管照顧計畫</h2></div><div class="output-actions"><button id="copyBtn" class="secondary-button" type="button">複製結果</button></div></div>
+      <div class="section-heading"><div><p class="step">完成</p><h2>個管照顧計畫</h2></div><div class="output-actions"><button id="retryBtn" class="secondary-button" type="button">重新產生</button><button id="copyBtn" class="secondary-button" type="button">複製結果</button></div></div>
       <div id="outputStatus" class="output-status"></div>
       <textarea id="outputText" class="output-textarea"></textarea>
     </section>
 
     <p class="footer-note">GitHub Pages 只負責畫面與資料整理；AI 透過 Cloudflare Worker 呼叫，OpenAI API Key 不會放在前端。</p>
   </main>
+
+  <aside id="floatingSummary" class="floating-summary" aria-label="已選服務快速摘要">
+    <div class="floating-summary-head"><strong>已選服務</strong><span id="floatingCount">0 項</span></div>
+    <div id="floatingItems" class="floating-items">尚未加入服務</div>
+    <div class="floating-total"><span>服務總額</span><strong id="floatingTotal">0 元</strong></div>
+    <button id="floatingGoBtn" class="secondary-button small" type="button">查看已選服務</button>
+  </aside>
+
+  <div id="mobileSummary" class="mobile-summary">
+    <div><strong id="mobileCount">0 項服務</strong><span id="mobileTotal">0 元</span></div>
+    <button id="mobileGoBtn" type="button">查看</button>
+  </div>
 </div>
-<script src="data.js?v=3"></script>
-<script src="config.js?v=3"></script>
-<script src="app.js?v=3"></script>
+
+<div id="loadingOverlay" class="loading-overlay hidden" aria-live="assertive" aria-busy="true">
+  <div class="loading-card">
+    <div class="spinner" aria-hidden="true"></div>
+    <h3>AI 正在整理個管照顧計畫</h3>
+    <p id="loadingMessage">正在分析照專計畫簡述，請稍候…</p>
+    <button id="cancelGenerateBtn" class="ghost-button" type="button">取消產生</button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+<script src="data.js?v=4"></script>
+<script src="config.js?v=4"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

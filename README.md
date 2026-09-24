@@ -1,22 +1,14 @@
-# 個管照顧計畫產生器 Web v3（正式 AI 串接版）
+# 個管照顧計畫產生器 Web v4（實際測試版）
 
-這版已將 v2 的示範模式切換為正式 Cloudflare Worker：
+這版建立在已成功串接 AI 的 v3 上，新增三大項：
 
-```text
-GitHub Pages
-  ↓
-/care-plan-web
-  ↓
-Cloudflare Worker
-  ↓
-OpenAI
-  ↓
-回傳 JSON
-  ↓
-網頁固定格式產生個管照顧計畫
-```
+1. Cloudflare Worker CORS 收回正式白名單，只允許指定 GitHub Pages / 本機測試來源。
+2. Web 最終產出格式與桌面版 `care_plan_generator_v4_cloudflare_openai_proxy_送餐OT01格式.py` 對齊。
+3. 操作體驗強化：大型 Loading、取消產生、完整錯誤資訊、重新產生、複製成功提示、離頁提醒、固定已選服務摘要。
 
-## GitHub Pages 需要上傳 / 覆蓋
+## GitHub Pages 上傳 / 覆蓋
+
+請將以下檔案放在 Repository 根目錄：
 
 - index.html
 - styles.css
@@ -24,8 +16,9 @@ OpenAI
 - config.js
 - app.js
 - icon.png
+- README.md
 
-`config.js` 已設定：
+`config.js` 已設定正式 AI：
 
 ```js
 DEMO_MODE: false
@@ -34,19 +27,35 @@ API_URL: "https://renbao-csms-license-server.ben50490.workers.dev/care-plan-web"
 
 ## Cloudflare Worker
 
-請先部署本次提供的：
+請部署另外提供的：
 
-`renbao-csms-license-server_v2.6.3_plus_care_plan_web.js`
+`renbao-csms-license-server_v2.6.3_care_plan_web_正式版.txt`
 
-此檔是以原本 v2.6.3 為底，只新增 `/care-plan-web` 相關函式與路由；原本 `/openai-chat`、授權、試用、繳費、更新、管理 API 都保留。
+它以目前已成功運作的 CORS 測試版為底，只將 `/care-plan-web` 的 CORS 從 `*` 收回白名單；既有 `/openai-chat`、授權、試用、繳費、更新、管理 API 不變。
 
-## Web API 限制
+## v4 產出格式對齊項目
 
-- 允許來源：`https://biubiussmile.github.io`
-- 照專簡述最多 30,000 字
-- Request 最大約 120 KB
-- 每個 IP 在單一 Worker isolate 內每 10 分鐘最多 10 次
-- system prompt 固定在 Worker，前端不能自訂 system prompt
-- 不把照專內容寫入 D1 / Worker log
+- 民國日期統一 `yyy/mm/dd`
+- 四碼時間自動轉回 `hh:mm`
+- 照顧問題分析空值文字與桌面版一致
+- 三、照顧問題清單固定預留五行
+- CMS 額度與計畫金額不加入千分位，與桌面版一致
+- BA / 專業 / 日照服務行格式與桌面版一致
+- 指定單位 / 輪派單位格式一致
+- 交通服務格式一致
+- 輔具起訖日、3年額度、已核銷總金額格式一致
+- GA09：`GA09[居家喘息服務] 42次/年`
+- OT01：`OT01[營養餐飲](10801)*62單位/月`
+- 無需求：`案家目前暫無使用之需求。`
 
-> 注意：目前 rate limit 是 Worker 記憶體內的基本限制，不是全域強制限制。若網站公開給大量使用者，後續再加 Cloudflare Rate Limiting / Turnstile / 登入會更安全。
+## CORS
+
+正式允許來源：
+
+- `https://biubiussmile.github.io`
+- `http://localhost:5500`
+- `http://127.0.0.1:5500`
+- `http://localhost:8000`
+- `http://127.0.0.1:8000`
+
+若未來改用 `careplan.chkia.dev` 等自訂網域，需要把新 Origin 加進 Worker 白名單。
