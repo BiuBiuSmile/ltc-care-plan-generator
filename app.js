@@ -218,7 +218,7 @@ function renderQuota() {
       generateBtn.disabled = false;
       generateBtn.textContent = "AI 產生個管計畫（管理者）";
     }
-    if (hint) hint.textContent = "固定資料由網頁控制；目前為管理者模式，完整產生與局部重寫不占 10 位測試名額，也不扣測試者 10 次額度。";
+    if (hint) hint.textContent = "";
     if (logoutBtn) logoutBtn.textContent = "離開管理者模式";
     return;
   }
