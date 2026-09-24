@@ -28,7 +28,7 @@ function render(data){
 async function login(){
   const value=$("#adminKey").value.trim(); if(!value)return;
   adminKey=value; $("#adminLoginBtn").disabled=true; $("#adminLoginError").classList.add("hidden");
-  try{const data=await api('list'); sessionStorage.setItem("carePlanAdminKey",adminKey); $("#adminLogin").classList.add("hidden"); $("#adminPanel").classList.remove("hidden"); render(data);}
+  try{const data=await api('list'); sessionStorage.setItem("carePlanAdminKey",adminKey); $("#adminLogin").classList.add("hidden"); $("#adminPanel").classList.remove("hidden"); render(data); toast("管理者模式已啟用，可按右上角進入計畫系統");}
   catch(e){$("#adminLoginError").textContent=e.message;$("#adminLoginError").classList.remove("hidden"); adminKey='';}
   finally{$("#adminLoginBtn").disabled=false;}
 }

@@ -22,9 +22,12 @@ let lastQualityContext = null;
 let aiDraftText = "";
 
 const BETA_TOKEN_KEY = "carePlanBetaToken";
+const ADMIN_KEY_SESSION = "carePlanAdminKey";
 let betaToken = localStorage.getItem(BETA_TOKEN_KEY) || "";
 let betaUser = null;
 let betaQuota = { max: 10, used: 0, remaining: 10 };
+let adminKey = sessionStorage.getItem(ADMIN_KEY_SESSION) || "";
+let adminMode = false;
 
 const PARTIAL_SECTION_LABELS = {
   care_analysis: "照顧面",
@@ -200,24 +203,45 @@ function setAuthError(message = "") {
   el.classList.toggle("hidden", !message);
 }
 function renderQuota() {
+  const q = $("#quotaText");
+  const generateBtn = $("#generateBtn");
+  const hint = $("#generateHint");
+  const logoutBtn = $("#logoutBtn");
+
+  if (adminMode) {
+    if (q) {
+      q.textContent = "管理者模式｜不扣測試額度";
+      q.classList.remove("quota-low", "quota-empty");
+    }
+    if ($("#testerEmail")) $("#testerEmail").textContent = "管理者";
+    if (generateBtn && !generationController) {
+      generateBtn.disabled = false;
+      generateBtn.textContent = "AI 產生個管計畫（管理者）";
+    }
+    if (hint) hint.textContent = "固定資料由網頁控制；目前為管理者模式，完整產生與局部重寫不占 10 位測試名額，也不扣測試者 10 次額度。";
+    if (logoutBtn) logoutBtn.textContent = "離開管理者模式";
+    return;
+  }
+
   const max = Number(betaQuota?.max || 10);
   const remaining = Math.max(0, Number(betaQuota?.remaining ?? max));
-  const q = $("#quotaText");
   if (q) {
     q.textContent = `剩餘 ${remaining} / ${max} 次`;
     q.classList.toggle("quota-low", remaining > 0 && remaining <= 3);
     q.classList.toggle("quota-empty", remaining <= 0);
   }
   if ($("#testerEmail")) $("#testerEmail").textContent = betaUser?.email || "測試帳號";
-  const generateBtn = $("#generateBtn");
   if (generateBtn && !generationController) {
     generateBtn.disabled = remaining <= 0;
     generateBtn.textContent = remaining <= 0 ? "AI 測試額度已用完" : "AI 產生個管計畫（使用 1 次）";
   }
+  if (hint) hint.textContent = "固定資料由網頁控制；AI 依撰寫模式整理照顧問題分析、問題清單與服務執行目的。每次完整產生會使用 1 次測試額度。";
+  if (logoutBtn) logoutBtn.textContent = "登出";
 }
 function updateBetaSession(data) {
+  if (data?.admin_mode) adminMode = true;
   if (data?.user) betaUser = data.user;
-  if (data?.quota) betaQuota = data.quota;
+  if (data?.quota && !adminMode) betaQuota = data.quota;
   renderQuota();
 }
 function showAppAfterAuth(data) {
@@ -244,12 +268,46 @@ async function authFetch(path, payload = {}, includeToken = false) {
   }
   return data;
 }
+async function validateAdminMode() {
+  if (!adminKey) return false;
+  const response = await fetch(adminApiUrl(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+      "X-Care-Plan-Admin-Key": adminKey,
+    },
+    body: JSON.stringify({ action: "status" }),
+  });
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { data = {}; }
+  if (!response.ok || data.ok === false) return false;
+  adminMode = true;
+  betaUser = { email: "管理者" };
+  showAppAfterAuth({ admin_mode: true, user: betaUser });
+  return true;
+}
 async function restoreBetaSession() {
-  if (!betaToken || CONFIG.DEMO_MODE) {
-    if (CONFIG.DEMO_MODE) showAppAfterAuth({ user: { email: "示範模式" }, quota: { max: 10, used: 0, remaining: 10 } });
-    else showAuthGate();
+  if (CONFIG.DEMO_MODE) {
+    showAppAfterAuth({ user: { email: "示範模式" }, quota: { max: 10, used: 0, remaining: 10 } });
     return;
   }
+
+  if (adminKey) {
+    try {
+      if (await validateAdminMode()) return;
+    } catch {}
+    adminKey = "";
+    adminMode = false;
+    sessionStorage.removeItem(ADMIN_KEY_SESSION);
+  }
+
+  if (!betaToken) {
+    showAuthGate();
+    return;
+  }
+
   try {
     const data = await authFetch("me", {}, true);
     showAppAfterAuth(data);
@@ -292,7 +350,13 @@ async function verifyBetaLogin() {
   finally { btn.disabled = false; btn.textContent = "完成驗證並進入"; }
 }
 async function logoutBeta() {
-  try { if (betaToken) await authFetch("logout", {}, true); } catch {}
+  if (adminMode) {
+    adminMode = false;
+    adminKey = "";
+    sessionStorage.removeItem(ADMIN_KEY_SESSION);
+  } else {
+    try { if (betaToken) await authFetch("logout", {}, true); } catch {}
+  }
   betaToken = ""; betaUser = null; betaQuota = { max: 10, used: 0, remaining: 10 };
   localStorage.removeItem(BETA_TOKEN_KEY);
   $("#verificationCodeInput").value = "";
@@ -300,6 +364,7 @@ async function logoutBeta() {
   $("#authStepInvite").classList.remove("hidden");
   showAuthGate();
 }
+
 
 function init() {
   Object.entries(DATA.cms).forEach(([k, v]) => {
@@ -1413,7 +1478,9 @@ async function callAI(payload) {
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        ...(betaToken ? { "Authorization": `Bearer ${betaToken}` } : {}),
+        ...(adminMode && adminKey
+          ? { "X-Care-Plan-Admin-Key": adminKey }
+          : (betaToken ? { "Authorization": `Bearer ${betaToken}` } : {})),
       },
       body: JSON.stringify(payload),
       signal: generationController.signal,
@@ -1422,12 +1489,19 @@ async function callAI(payload) {
     const raw = await response.text();
     let data = {};
     try { data = raw ? JSON.parse(raw) : {}; } catch { data = {}; }
-    if (data.quota) updateBetaSession({ quota: data.quota });
+    if (data.admin_mode) { adminMode = true; renderQuota(); }
+    else if (data.quota) updateBetaSession({ quota: data.quota });
 
     if (!response.ok || data.ok === false) {
-      if (response.status === 401 || data.code === "SESSION_INVALID" || data.code === "SESSION_EXPIRED" || data.code === "AUTH_REQUIRED") {
-        betaToken = "";
-        localStorage.removeItem(BETA_TOKEN_KEY);
+      if (response.status === 401 || data.code === "SESSION_INVALID" || data.code === "SESSION_EXPIRED" || data.code === "AUTH_REQUIRED" || data.code === "ADMIN_UNAUTHORIZED") {
+        if (adminMode) {
+          adminMode = false;
+          adminKey = "";
+          sessionStorage.removeItem(ADMIN_KEY_SESSION);
+        } else {
+          betaToken = "";
+          localStorage.removeItem(BETA_TOKEN_KEY);
+        }
         showAuthGate();
       }
       const err = new Error(data.message || `HTTP ${response.status}`);
