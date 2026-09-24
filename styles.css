@@ -71,3 +71,6 @@
   #step3{position:static}
   #step2 .service-list{max-height:none;overflow:visible}
 }
+
+/* v5.1：錯誤面板隱藏修正 */
+.error-panel.hidden{display:none}
