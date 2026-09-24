@@ -5,20 +5,43 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
 <meta content="#648da7" name="theme-color"/>
-<meta content="個管照顧計畫產生器 v8 實務穩定版：全面服務防呆、局部 AI 重寫、可編輯結果與 AI 原稿復原。" name="description"/>
-<title>個管照顧計畫產生器｜v8 實務穩定版</title>
+<meta content="個管照顧計畫產生器 v9 封閉測試版：全面服務防呆、局部 AI 重寫、可編輯結果與 AI 原稿復原。" name="description"/>
+<title>個管照顧計畫產生器｜v9 封閉測試版</title>
 <link href="icon.png" rel="icon" type="image/png"/>
-<link href="styles.css?v=8" rel="stylesheet"/>
+<link href="styles.css?v=9" rel="stylesheet"/>
 </head>
 <body>
-<div class="app-shell">
+<div class="auth-shell" id="authGate">
+  <section class="auth-card">
+    <div class="auth-mark">CLOSED BETA</div>
+    <h1>個管照顧計畫產生器</h1>
+    <p class="auth-subtitle">目前為封閉測試。請使用管理者提供的邀請碼與登記信箱完成驗證。</p>
+    <div class="auth-info"><strong>測試額度</strong><span>每位測試者共 10 次 AI 呼叫；完整產生與局部重寫各計 1 次。</span></div>
+    <div id="authStepInvite">
+      <label><span class="field-label">邀請碼</span><input class="input-control" id="inviteCodeInput" autocomplete="one-time-code" placeholder="例如 CP-ABCD-1234"/></label>
+      <label class="auth-field"><span class="field-label">登記信箱</span><input class="input-control" id="emailInput" type="email" autocomplete="email" placeholder="name@example.com"/></label>
+      <button class="primary-button auth-primary" id="sendVerifyCodeBtn" type="button">寄送 Email 驗證碼</button>
+    </div>
+    <div class="hidden" id="authStepOtp">
+      <div class="auth-sent" id="authSentMessage">驗證碼已寄出。</div>
+      <label><span class="field-label">6 位數 Email 驗證碼</span><input class="input-control otp-input" id="verificationCodeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000"/></label>
+      <button class="primary-button auth-primary" id="verifyLoginBtn" type="button">完成驗證並進入</button>
+      <button class="text-button auth-back" id="authBackBtn" type="button">返回修改邀請碼／信箱</button>
+    </div>
+    <div class="auth-error hidden" id="authError"></div>
+    <p class="auth-footnote">驗證碼 10 分鐘內有效。個案照專內容不會寫入測試帳號資料庫。</p>
+  </section>
+</div>
+<div class="app-shell hidden" id="appRoot">
 <header class="topbar">
 <div>
-<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v8 實務穩定</span>
+<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v9 封閉測試</span>
 <h1>個管照顧計畫產生器</h1>
 <p class="subtitle">先選好服務，再貼上照專計畫簡述；系統會先做服務資料防呆，AI 完成後可局部重寫、直接編輯，並保留 AI 原稿供復原與重新檢核。</p>
 </div>
 <div class="top-actions">
+<div class="tester-status" id="testerStatus"><span id="testerEmail">測試帳號</span><strong id="quotaText">剩餘 10 / 10 次</strong></div>
+<button class="ghost-button" id="logoutBtn" type="button">登出</button>
 <button class="ghost-button" id="sampleBtn" type="button">載入範例</button>
 <button class="ghost-button" id="resetBtn" type="button">清空</button>
 </div>
@@ -140,8 +163,8 @@
 <p class="helper">直接從照管複製後貼上即可；本網頁本身不登入、不控制照管平台。</p>
 <textarea class="source-textarea" id="sourceText" placeholder="請貼上完整照專計畫簡述……"></textarea>
 </section><section class="generate-card" id="step8">
-<div><p class="step">STEP 8</p><h2>產生個管照顧計畫</h2><p id="generateHint">固定資料由網頁控制；AI 依撰寫模式整理照顧問題分析、問題清單與服務執行目的。</p></div>
-<button class="primary-button" id="generateBtn" type="button">AI 產生個管計畫</button>
+<div><p class="step">STEP 8</p><h2>產生個管照顧計畫</h2><p id="generateHint">固定資料由網頁控制；AI 依撰寫模式整理照顧問題分析、問題清單與服務執行目的。每次完整產生會使用 1 次測試額度。</p></div>
+<button class="primary-button" id="generateBtn" type="button">AI 產生個管計畫（使用 1 次）</button>
 </section><section aria-live="polite" class="error-panel hidden" id="generateError">
 <div>
 <strong>產生失敗</strong>
@@ -214,8 +237,8 @@
 </div>
 </div>
 <div aria-live="polite" class="toast hidden" id="toast" role="status"></div>
-<script src="data.js?v=8"></script>
-<script src="config.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="data.js?v=9"></script>
+<script src="config.js?v=9"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

@@ -21,6 +21,11 @@ let toastTimer = null;
 let lastQualityContext = null;
 let aiDraftText = "";
 
+const BETA_TOKEN_KEY = "carePlanBetaToken";
+let betaToken = localStorage.getItem(BETA_TOKEN_KEY) || "";
+let betaUser = null;
+let betaQuota = { max: 10, used: 0, remaining: 10 };
+
 const PARTIAL_SECTION_LABELS = {
   care_analysis: "照顧面",
   economic_analysis: "經濟面",
@@ -182,6 +187,122 @@ function showGenerateError(error) {
   panel.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
+
+function apiBaseUrl() {
+  return String(CONFIG.API_URL || "").replace(/\/care-plan-web\/?$/, "");
+}
+function authApiUrl(action) { return `${apiBaseUrl()}/care-plan-auth/${action}`; }
+function adminApiUrl() { return `${apiBaseUrl()}/care-plan-admin`; }
+function setAuthError(message = "") {
+  const el = $("#authError");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.toggle("hidden", !message);
+}
+function renderQuota() {
+  const max = Number(betaQuota?.max || 10);
+  const remaining = Math.max(0, Number(betaQuota?.remaining ?? max));
+  const q = $("#quotaText");
+  if (q) {
+    q.textContent = `剩餘 ${remaining} / ${max} 次`;
+    q.classList.toggle("quota-low", remaining > 0 && remaining <= 3);
+    q.classList.toggle("quota-empty", remaining <= 0);
+  }
+  if ($("#testerEmail")) $("#testerEmail").textContent = betaUser?.email || "測試帳號";
+  const generateBtn = $("#generateBtn");
+  if (generateBtn && !generationController) {
+    generateBtn.disabled = remaining <= 0;
+    generateBtn.textContent = remaining <= 0 ? "AI 測試額度已用完" : "AI 產生個管計畫（使用 1 次）";
+  }
+}
+function updateBetaSession(data) {
+  if (data?.user) betaUser = data.user;
+  if (data?.quota) betaQuota = data.quota;
+  renderQuota();
+}
+function showAppAfterAuth(data) {
+  updateBetaSession(data);
+  $("#authGate")?.classList.add("hidden");
+  $("#appRoot")?.classList.remove("hidden");
+}
+function showAuthGate() {
+  $("#appRoot")?.classList.add("hidden");
+  $("#authGate")?.classList.remove("hidden");
+}
+async function authFetch(path, payload = {}, includeToken = false) {
+  const headers = { "Content-Type": "application/json", "Accept": "application/json" };
+  if (includeToken && betaToken) headers.Authorization = `Bearer ${betaToken}`;
+  const response = await fetch(authApiUrl(path), { method: "POST", headers, body: JSON.stringify(payload) });
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { data = {}; }
+  if (!response.ok || data.ok === false) {
+    const err = new Error(data.message || `HTTP ${response.status}`);
+    err.code = data.code || "AUTH_ERROR";
+    err.status = response.status;
+    throw err;
+  }
+  return data;
+}
+async function restoreBetaSession() {
+  if (!betaToken || CONFIG.DEMO_MODE) {
+    if (CONFIG.DEMO_MODE) showAppAfterAuth({ user: { email: "示範模式" }, quota: { max: 10, used: 0, remaining: 10 } });
+    else showAuthGate();
+    return;
+  }
+  try {
+    const data = await authFetch("me", {}, true);
+    showAppAfterAuth(data);
+  } catch {
+    betaToken = "";
+    betaUser = null;
+    localStorage.removeItem(BETA_TOKEN_KEY);
+    showAuthGate();
+  }
+}
+async function sendVerificationCode() {
+  setAuthError("");
+  const invite = $("#inviteCodeInput").value.trim();
+  const email = $("#emailInput").value.trim();
+  if (!invite || !email) { setAuthError("請輸入邀請碼與登記信箱。"); return; }
+  const btn = $("#sendVerifyCodeBtn");
+  btn.disabled = true; btn.textContent = "寄送中…";
+  try {
+    const data = await authFetch("request-code", { invite_code: invite, email });
+    $("#authSentMessage").textContent = data.message || "驗證碼已寄出。";
+    $("#authStepInvite").classList.add("hidden");
+    $("#authStepOtp").classList.remove("hidden");
+    $("#verificationCodeInput").focus();
+  } catch (e) { setAuthError(e.message); }
+  finally { btn.disabled = false; btn.textContent = "寄送 Email 驗證碼"; }
+}
+async function verifyBetaLogin() {
+  setAuthError("");
+  const invite = $("#inviteCodeInput").value.trim();
+  const email = $("#emailInput").value.trim();
+  const code = $("#verificationCodeInput").value.trim();
+  if (!/^\d{6}$/.test(code)) { setAuthError("請輸入 6 位數 Email 驗證碼。"); return; }
+  const btn = $("#verifyLoginBtn");
+  btn.disabled = true; btn.textContent = "驗證中…";
+  try {
+    const data = await authFetch("verify", { invite_code: invite, email, verification_code: code });
+    betaToken = data.token || "";
+    localStorage.setItem(BETA_TOKEN_KEY, betaToken);
+    showAppAfterAuth(data);
+    showToast("信箱驗證完成");
+  } catch (e) { setAuthError(e.message); }
+  finally { btn.disabled = false; btn.textContent = "完成驗證並進入"; }
+}
+async function logoutBeta() {
+  try { if (betaToken) await authFetch("logout", {}, true); } catch {}
+  betaToken = ""; betaUser = null; betaQuota = { max: 10, used: 0, remaining: 10 };
+  localStorage.removeItem(BETA_TOKEN_KEY);
+  $("#verificationCodeInput").value = "";
+  $("#authStepOtp").classList.add("hidden");
+  $("#authStepInvite").classList.remove("hidden");
+  showAuthGate();
+}
+
 function init() {
   Object.entries(DATA.cms).forEach(([k, v]) => {
     $("#cmsSelect").insertAdjacentHTML(
@@ -195,9 +316,15 @@ function init() {
   renderAll();
   updateModeBanner();
   markClean();
+  restoreBetaSession();
 }
 
 function bind() {
+  $("#sendVerifyCodeBtn")?.addEventListener("click", sendVerificationCode);
+  $("#verifyLoginBtn")?.addEventListener("click", verifyBetaLogin);
+  $("#authBackBtn")?.addEventListener("click", () => { setAuthError(""); $("#authStepOtp").classList.add("hidden"); $("#authStepInvite").classList.remove("hidden"); });
+  $("#verificationCodeInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") verifyBetaLogin(); });
+  $("#logoutBtn")?.addEventListener("click", logoutBeta);
   $("#identitySelect").addEventListener("change", () => {
     renderBasic();
     renderTotals();
@@ -1288,6 +1415,7 @@ async function callAI(payload) {
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
+        ...(betaToken ? { "Authorization": `Bearer ${betaToken}` } : {}),
       },
       body: JSON.stringify(payload),
       signal: generationController.signal,
@@ -1296,8 +1424,14 @@ async function callAI(payload) {
     const raw = await response.text();
     let data = {};
     try { data = raw ? JSON.parse(raw) : {}; } catch { data = {}; }
+    if (data.quota) updateBetaSession({ quota: data.quota });
 
     if (!response.ok || data.ok === false) {
+      if (response.status === 401 || data.code === "SESSION_INVALID" || data.code === "SESSION_EXPIRED" || data.code === "AUTH_REQUIRED") {
+        betaToken = "";
+        localStorage.removeItem(BETA_TOKEN_KEY);
+        showAuthGate();
+      }
       const err = new Error(data.message || `HTTP ${response.status}`);
       err.status = response.status;
       err.code = data.code || "HTTP_ERROR";
@@ -1364,8 +1498,8 @@ async function generate() {
     showGenerateError(e);
   } finally {
     setLoading(false);
-    btn.disabled = false;
-    btn.textContent = "AI 產生個管計畫";
+    btn.disabled = Number(betaQuota?.remaining || 0) <= 0;
+    btn.textContent = Number(betaQuota?.remaining || 0) <= 0 ? "AI 測試額度已用完" : "AI 產生個管計畫（使用 1 次）";
     $("#retryBtn").disabled = false;
     $("#errorRetryBtn").disabled = false;
     $("#generateHint").textContent = "固定資料由網頁控制；AI 依撰寫模式整理照顧問題分析、問題清單與服務執行目的。";
@@ -1469,7 +1603,7 @@ function updateModeBanner() {
     b.innerHTML = "<strong>網頁測試版</strong><span>不連線照管平台；目前 AI 為示範模式，可先確認操作流程與產出格式。</span>";
   } else {
     b.className = "mode-banner live";
-    b.innerHTML = "<strong>AI 已啟用</strong><span>照專內容由 AI 彈性整理；服務碼、月單位、金額與照會單位仍由網頁固定。</span>";
+    b.innerHTML = "<strong>封閉測試</strong><span>每位測試者共 10 次 AI 呼叫；完整產生與局部重寫各計 1 次。服務碼、月單位、金額與照會單位仍由網頁固定。</span>";
   }
 }
 
