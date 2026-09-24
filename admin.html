@@ -6,20 +6,20 @@
 <meta name="robots" content="noindex,nofollow"/>
 <title>個管照顧計畫｜封閉測試管理</title>
 <link rel="icon" href="icon.png" type="image/png"/>
-<link rel="stylesheet" href="styles.css?v=9"/>
-<link rel="stylesheet" href="admin.css?v=9"/>
+<link rel="stylesheet" href="styles.css?v=9.1"/>
+<link rel="stylesheet" href="admin.css?v=9.1"/>
 </head>
 <body class="admin-body">
 <div class="admin-shell">
-<header class="admin-header"><div><p class="eyebrow">CLOSED BETA ADMIN</p><h1>封閉測試管理</h1><p>每位測試者固定 10 次 AI 呼叫。邀請碼只在建立或重發時顯示一次。</p></div><a class="ghost-button admin-home" href="index.html">回主網站</a></header>
+<header class="admin-header"><div><p class="eyebrow">BETA ADMIN</p><h1>測試帳號管理</h1><p>前 10 位完成 Email 驗證者會自動加入，每位固定 10 次 AI 呼叫。</p></div><a class="ghost-button admin-home" href="index.html">回主網站</a></header>
 <section class="admin-card admin-login" id="adminLogin"><h2>管理者驗證</h2><p>請輸入 Cloudflare Worker Secret「CARE_PLAN_ADMIN_KEY」對應的管理密碼。</p><div class="admin-login-row"><input class="input-control" id="adminKey" type="password" autocomplete="current-password" placeholder="管理密碼"/><button class="primary-button" id="adminLoginBtn">進入管理</button></div><div class="auth-error hidden" id="adminLoginError"></div></section>
 <div class="hidden" id="adminPanel">
 <section class="admin-stats" id="adminStats"></section>
-<section class="admin-card"><div class="admin-section-head"><div><p class="step">NEW TESTER</p><h2>新增測試者</h2></div><span class="fixed-quota">固定 10 次 AI</span></div><div class="admin-form-grid"><label><span class="field-label">姓名／代稱</span><input class="input-control" id="testerName" placeholder="例如：王OO"/></label><label><span class="field-label">Email</span><input class="input-control" id="testerEmailInput" type="email" placeholder="name@example.com"/></label><label><span class="field-label">到期日（選填）</span><input class="input-control" id="testerExpiry" type="date"/></label></div><button class="primary-button" id="createTesterBtn">建立邀請</button><div class="invite-result hidden" id="inviteResult"><div><span>本次邀請碼</span><strong id="newInviteCode"></strong></div><button class="secondary-button small" id="copyInviteBtn">複製邀請碼</button><p>請將「邀請碼 + 登記 Email」交給測試者。此邀請碼之後無法從資料庫還原，只能重發。</p></div></section>
-<section class="admin-card"><div class="admin-section-head"><div><p class="step">TESTERS</p><h2>測試帳號</h2></div><button class="secondary-button small" id="refreshAdminBtn">重新整理</button></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>測試者</th><th>使用量</th><th>到期日</th><th>狀態</th><th>最後使用</th><th>操作</th></tr></thead><tbody id="testerRows"></tbody></table></div></section>
+<section class="admin-card beta-note"><div class="admin-section-head"><div><p class="step">SELF SERVICE</p><h2>自助測試模式</h2></div><span class="fixed-quota">10 人上限</span></div><p>不需要手動新增測試者。使用者在首頁輸入 Email 並完成驗證後，系統會自動建立帳號；達 10 位後，新 Email 將無法加入。刪除一位帳號後會釋出 1 個名額。</p></section>
+<section class="admin-card"><div class="admin-section-head"><div><p class="step">TESTERS</p><h2>測試帳號</h2></div><button class="secondary-button small" id="refreshAdminBtn">重新整理</button></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>測試者</th><th>使用量</th><th>註冊時間</th><th>狀態</th><th>最後使用</th><th>操作</th></tr></thead><tbody id="testerRows"></tbody></table></div></section>
 </div>
 <div class="toast hidden" id="toast" role="status"></div>
 </div>
-<script src="config.js?v=9"></script>
-<script src="admin.js?v=9"></script>
+<script src="config.js?v=9.1"></script>
+<script src="admin.js?v=9.1"></script>
 </body></html>

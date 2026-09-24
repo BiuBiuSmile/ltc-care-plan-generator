@@ -262,30 +262,28 @@ async function restoreBetaSession() {
 }
 async function sendVerificationCode() {
   setAuthError("");
-  const invite = $("#inviteCodeInput").value.trim();
   const email = $("#emailInput").value.trim();
-  if (!invite || !email) { setAuthError("請輸入邀請碼與登記信箱。"); return; }
+  if (!email) { setAuthError("請輸入 Email。"); return; }
   const btn = $("#sendVerifyCodeBtn");
   btn.disabled = true; btn.textContent = "寄送中…";
   try {
-    const data = await authFetch("request-code", { invite_code: invite, email });
+    const data = await authFetch("request-code", { email });
     $("#authSentMessage").textContent = data.message || "驗證碼已寄出。";
     $("#authStepInvite").classList.add("hidden");
     $("#authStepOtp").classList.remove("hidden");
     $("#verificationCodeInput").focus();
   } catch (e) { setAuthError(e.message); }
-  finally { btn.disabled = false; btn.textContent = "寄送 Email 驗證碼"; }
+  finally { btn.disabled = false; btn.textContent = "取得 Email 驗證碼"; }
 }
 async function verifyBetaLogin() {
   setAuthError("");
-  const invite = $("#inviteCodeInput").value.trim();
   const email = $("#emailInput").value.trim();
   const code = $("#verificationCodeInput").value.trim();
   if (!/^\d{6}$/.test(code)) { setAuthError("請輸入 6 位數 Email 驗證碼。"); return; }
   const btn = $("#verifyLoginBtn");
   btn.disabled = true; btn.textContent = "驗證中…";
   try {
-    const data = await authFetch("verify", { invite_code: invite, email, verification_code: code });
+    const data = await authFetch("verify", { email, verification_code: code });
     betaToken = data.token || "";
     localStorage.setItem(BETA_TOKEN_KEY, betaToken);
     showAppAfterAuth(data);

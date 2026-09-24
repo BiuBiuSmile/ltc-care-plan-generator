@@ -5,37 +5,36 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
 <meta content="#648da7" name="theme-color"/>
-<meta content="個管照顧計畫產生器 v9 封閉測試版：全面服務防呆、局部 AI 重寫、可編輯結果與 AI 原稿復原。" name="description"/>
-<title>個管照顧計畫產生器｜v9 封閉測試版</title>
+<meta content="個管照顧計畫產生器 v9.1 自助測試版：Email 驗證、自動取得測試資格、每人 10 次 AI。" name="description"/>
+<title>個管照顧計畫產生器｜v9.1 自助測試版</title>
 <link href="icon.png" rel="icon" type="image/png"/>
-<link href="styles.css?v=9" rel="stylesheet"/>
+<link href="styles.css?v=9.1" rel="stylesheet"/>
 </head>
 <body>
 <div class="auth-shell" id="authGate">
   <section class="auth-card">
     <div class="auth-mark">CLOSED BETA</div>
     <h1>個管照顧計畫產生器</h1>
-    <p class="auth-subtitle">目前為封閉測試。請使用管理者提供的邀請碼與登記信箱完成驗證。</p>
-    <div class="auth-info"><strong>測試額度</strong><span>每位測試者共 10 次 AI 呼叫；完整產生與局部重寫各計 1 次。</span></div>
+    <p class="auth-subtitle">目前為小規模測試。輸入 Email 取得驗證碼，完成驗證後會自動取得測試資格。</p>
+    <div class="auth-info"><strong>測試名額</strong><span>限前 10 位完成 Email 驗證者，每位共 10 次 AI 呼叫；完整產生與局部重寫各計 1 次。</span></div>
     <div id="authStepInvite">
-      <label><span class="field-label">邀請碼</span><input class="input-control" id="inviteCodeInput" autocomplete="one-time-code" placeholder="例如 CP-ABCD-1234"/></label>
-      <label class="auth-field"><span class="field-label">登記信箱</span><input class="input-control" id="emailInput" type="email" autocomplete="email" placeholder="name@example.com"/></label>
-      <button class="primary-button auth-primary" id="sendVerifyCodeBtn" type="button">寄送 Email 驗證碼</button>
+      <label class="auth-field"><span class="field-label">Email</span><input class="input-control" id="emailInput" type="email" autocomplete="email" placeholder="name@example.com"/></label>
+      <button class="primary-button auth-primary" id="sendVerifyCodeBtn" type="button">取得 Email 驗證碼</button>
     </div>
     <div class="hidden" id="authStepOtp">
       <div class="auth-sent" id="authSentMessage">驗證碼已寄出。</div>
       <label><span class="field-label">6 位數 Email 驗證碼</span><input class="input-control otp-input" id="verificationCodeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000"/></label>
       <button class="primary-button auth-primary" id="verifyLoginBtn" type="button">完成驗證並進入</button>
-      <button class="text-button auth-back" id="authBackBtn" type="button">返回修改邀請碼／信箱</button>
+      <button class="text-button auth-back" id="authBackBtn" type="button">返回修改 Email</button>
     </div>
     <div class="auth-error hidden" id="authError"></div>
-    <p class="auth-footnote">驗證碼 10 分鐘內有效。個案照專內容不會寫入測試帳號資料庫。</p>
+    <p class="auth-footnote">驗證碼 10 分鐘內有效。新 Email 僅在尚有名額時可加入；已加入的測試者之後仍可重新登入。個案照專內容不會寫入測試帳號資料庫。</p>
   </section>
 </div>
 <div class="app-shell hidden" id="appRoot">
 <header class="topbar">
 <div>
-<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v9 封閉測試</span>
+<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v9.1 自助測試</span>
 <h1>個管照顧計畫產生器</h1>
 <p class="subtitle">先選好服務，再貼上照專計畫簡述；系統會先做服務資料防呆，AI 完成後可局部重寫、直接編輯，並保留 AI 原稿供復原與重新檢核。</p>
 </div>
@@ -237,8 +236,8 @@
 </div>
 </div>
 <div aria-live="polite" class="toast hidden" id="toast" role="status"></div>
-<script src="data.js?v=9"></script>
-<script src="config.js?v=9"></script>
-<script src="app.js?v=9"></script>
+<script src="data.js?v=9.1"></script>
+<script src="config.js?v=9.1"></script>
+<script src="app.js?v=9.1"></script>
 </body>
 </html>
