@@ -5,18 +5,18 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
 <meta content="#648da7" name="theme-color"/>
-<meta content="個管照顧計畫產生器桌面網頁版：寬螢幕雙欄工作區、服務試算、照專簡述與 AI 個管計畫產出。" name="description"/>
-<title>個管照顧計畫產生器｜桌面網頁版</title>
+<meta content="個管照顧計畫產生器彈性模板版：固定服務資料、彈性照顧問題分析與照顧問題清單。" name="description"/>
+<title>個管照顧計畫產生器｜彈性模板版</title>
 <link href="icon.png" rel="icon" type="image/png"/>
-<link href="styles.css?v=5" rel="stylesheet"/>
+<link href="styles.css?v=6" rel="stylesheet"/>
 </head>
 <body>
 <div class="app-shell">
 <header class="topbar">
 <div>
-<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">桌面網頁版</span>
+<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v6 彈性模板</span>
 <h1>個管照顧計畫產生器</h1>
-<p class="subtitle">先選好服務，再貼上照專計畫簡述；服務碼、單位數與金額由系統固定，AI 只整理文字內容。</p>
+<p class="subtitle">先選好服務，再貼上照專計畫簡述；固定資料由系統控制，文字內容則依「精簡／標準／詳細」模式彈性整理。</p>
 </div>
 <div class="top-actions">
 <button class="ghost-button" id="sampleBtn" type="button">載入範例</button>
@@ -104,6 +104,9 @@
 </div>
 <p class="format-preview">產出格式：<code>OT01[營養餐飲](10801)*62單位/月</code></p>
 </div>
+<label><span class="field-label">特殊服務／其他核定事項（選填）</span>
+<textarea class="input-control compact-textarea" id="specialPlanItems" placeholder="例如：AA09例假日服務需求、短照特殊說明、其他需獨立列示的核定事項。沒有可留空。"></textarea>
+</label>
 <label><span class="field-label">其他資源運用</span><input class="input-control" id="otherResource" placeholder="沒有可留空，產出為「無」"/></label>
 </section><div class="desktop-stack"><section class="card" id="step5">
 <div class="section-heading"><div><p class="step">STEP 5</p><h2>服務單位選擇 <span class="required-badge">必填</span></h2></div></div>
@@ -113,17 +116,31 @@
 <label class="unit-option"><input name="unitMode" type="radio" value="rotation"/><div><strong>不指定服務單位</strong><span>依輪派原則進行照會</span></div></label>
 <input class="input-control nested-input" disabled="" id="rotationUnit" placeholder="請輸入輪派單位名稱"/>
 </section><section class="card" id="step6">
-<div class="section-heading"><div><p class="step">STEP 6</p><h2>服務介入後改變</h2></div></div>
+<div class="section-heading"><div><p class="step">STEP 6</p><h2>撰寫方式與服務介入後改變</h2></div></div>
+<label><span class="field-label">計畫撰寫模式</span>
+<select class="input-control" id="writingModeSelect">
+<option value="standard" selected>標準｜依資料量整理，保留主要細節</option>
+<option value="compact">精簡｜句子短、重點式</option>
+<option value="detailed">詳細｜保留較完整病史、功能與家庭脈絡</option>
+</select>
+</label>
+<p class="helper mode-helper">不影響服務碼、單位數、金額與照會單位；只調整文字段落的長度與細節。</p>
+<label class="spaced-field"><span class="field-label">服務介入後改變</span>
 <select class="input-control" id="interventionSelect">
 <option value="尚未使用">尚未使用</option>
+<option value="初評">初評</option>
+<option value="待服務介入後填寫">待服務介入後填寫</option>
 <option value="穩定持續使用服務">穩定持續使用服務</option>
+<option value="自訂">自訂</option>
 </select>
+</label>
+<input class="input-control hidden" id="interventionCustom" placeholder="請輸入服務介入後改變，例如：服務介入後減輕案家照顧負荷。"/>
 </section></div></div><section class="card" id="step7">
 <div class="section-heading"><div><p class="step">STEP 7</p><h2>貼上照專計畫簡述</h2></div><span class="count-badge" id="charCount">0 字</span></div>
 <p class="helper">直接從照管複製後貼上即可；本網頁本身不登入、不控制照管平台。</p>
 <textarea class="source-textarea" id="sourceText" placeholder="請貼上完整照專計畫簡述……"></textarea>
 </section><section class="generate-card" id="step8">
-<div><p class="step">STEP 8</p><h2>產生個管照顧計畫</h2><p id="generateHint">服務資料由網頁固定，AI 只整理照專內容與各服務執行目的。</p></div>
+<div><p class="step">STEP 8</p><h2>產生個管照顧計畫</h2><p id="generateHint">固定資料由網頁控制；AI 依撰寫模式整理照顧問題分析、問題清單與服務執行目的。</p></div>
 <button class="primary-button" id="generateBtn" type="button">AI 產生個管計畫</button>
 </section><section aria-live="polite" class="error-panel hidden" id="generateError">
 <div>
@@ -136,7 +153,7 @@
 <div class="section-heading"><div><p class="step">完成</p><h2>個管照顧計畫</h2></div><div class="output-actions"><button class="secondary-button" id="retryBtn" type="button">重新產生</button><button class="secondary-button" id="copyBtn" type="button">複製結果</button></div></div>
 <div class="output-status" id="outputStatus"></div>
 <textarea class="output-textarea" id="outputText"></textarea>
-</section><p class="footer-note">GitHub Pages 只負責畫面與資料整理；AI 透過 Cloudflare Worker 呼叫，OpenAI API Key 不會放在前端。</p></div><aside aria-label="桌面版快速導覽" class="desktop-sidebar"><nav aria-label="填寫步驟" class="sidebar-card desktop-step-nav"><h3>填寫進度</h3><p class="sidebar-note">桌面版可直接由右側快速跳到各區塊。</p><a class="sidebar-step" href="#step1"><span class="sidebar-step-no">1</span><span>基本核定資料</span></a><a class="sidebar-step" href="#step2"><span class="sidebar-step-no">2</span><span>選擇服務項目</span></a><a class="sidebar-step" href="#step3"><span class="sidebar-step-no">3</span><span>已選服務與額度</span></a><a class="sidebar-step" href="#step4"><span class="sidebar-step-no">4</span><span>其他服務</span></a><a class="sidebar-step" href="#step5"><span class="sidebar-step-no">5</span><span>服務單位選擇</span></a><a class="sidebar-step" href="#step6"><span class="sidebar-step-no">6</span><span>服務介入後改變</span></a><a class="sidebar-step" href="#step7"><span class="sidebar-step-no">7</span><span>貼上照專計畫</span></a><a class="sidebar-step" href="#step8"><span class="sidebar-step-no">8</span><span>產生個管計畫</span></a></nav><aside aria-label="已選服務快速摘要" class="sidebar-card floating-summary" id="floatingSummary">
+</section><p class="footer-note">GitHub Pages 只負責畫面與資料整理；AI 透過 Cloudflare Worker 呼叫，OpenAI API Key 不會放在前端；服務碼、單位數與金額仍由網頁固定。</p></div><aside aria-label="桌面版快速導覽" class="desktop-sidebar"><nav aria-label="填寫步驟" class="sidebar-card desktop-step-nav"><h3>填寫進度</h3><p class="sidebar-note">桌面版可直接由右側快速跳到各區塊。</p><a class="sidebar-step" href="#step1"><span class="sidebar-step-no">1</span><span>基本核定資料</span></a><a class="sidebar-step" href="#step2"><span class="sidebar-step-no">2</span><span>選擇服務項目</span></a><a class="sidebar-step" href="#step3"><span class="sidebar-step-no">3</span><span>已選服務與額度</span></a><a class="sidebar-step" href="#step4"><span class="sidebar-step-no">4</span><span>其他服務</span></a><a class="sidebar-step" href="#step5"><span class="sidebar-step-no">5</span><span>服務單位選擇</span></a><a class="sidebar-step" href="#step6"><span class="sidebar-step-no">6</span><span>撰寫模式／介入改變</span></a><a class="sidebar-step" href="#step7"><span class="sidebar-step-no">7</span><span>貼上照專計畫</span></a><a class="sidebar-step" href="#step8"><span class="sidebar-step-no">8</span><span>產生個管計畫</span></a></nav><aside aria-label="已選服務快速摘要" class="sidebar-card floating-summary" id="floatingSummary">
 <div class="floating-summary-head"><strong>已選服務</strong><span id="floatingCount">0 項</span></div>
 <div class="floating-items" id="floatingItems">尚未加入服務</div>
 <div class="floating-total"><span>服務總額</span><strong id="floatingTotal">0 元</strong></div>
@@ -169,8 +186,8 @@
 </div>
 </div>
 <div aria-live="polite" class="toast hidden" id="toast" role="status"></div>
-<script src="data.js?v=5"></script>
-<script src="config.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script src="data.js?v=6"></script>
+<script src="config.js?v=6"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

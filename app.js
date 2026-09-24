@@ -50,6 +50,16 @@ function currentCMS() {
   return $("#cmsSelect").value;
 }
 
+function currentWritingMode() {
+  return $("#writingModeSelect")?.value || "standard";
+}
+
+function currentIntervention() {
+  const value = $("#interventionSelect")?.value || "尚未使用";
+  if (value === "自訂") return $("#interventionCustom")?.value.trim() || "";
+  return value;
+}
+
 function calc() {
   const ident = identityInfo[currentIdentity()];
   const budget = Number(DATA.cms[currentCMS()] || 0);
@@ -160,6 +170,12 @@ function bind() {
     if (m !== "designated") $("#designatedUnit").value = "";
     if (m !== "rotation") $("#rotationUnit").value = "";
   }));
+  $("#interventionSelect").addEventListener("change", () => {
+    const custom = $("#interventionSelect").value === "自訂";
+    $("#interventionCustom").classList.toggle("hidden", !custom);
+    if (!custom) $("#interventionCustom").value = "";
+  });
+
   $("#addAidBtn").addEventListener("click", () => {
     state.aidItems.push({ item: "", subsidy: "" });
     markDirty();
@@ -429,6 +445,8 @@ function collect() {
       count_per_month: $("#mealCount").value.trim(),
       unit: $("#mealUnit").value.trim(),
     },
+    writing_mode: currentWritingMode(),
+    special_plan_items: $("#specialPlanItems")?.value.trim() || "",
     other_service: $("#otherResource").value.trim(),
     unit_selection: {
       mode: unitMode(),
@@ -474,6 +492,11 @@ function validate(data) {
   if (data.meal.enabled && !data.meal.count_per_month) {
     alert("已勾選餐飲服務，請填寫「餐／月」。");
     $("#mealCount").focus();
+    return false;
+  }
+  if ($("#interventionSelect").value === "自訂" && !currentIntervention()) {
+    alert("已選擇自訂服務介入後改變，請輸入內容。");
+    $("#interventionCustom").focus();
     return false;
   }
   const source = $("#sourceText").value.trim();
@@ -539,17 +562,17 @@ function asList(value) {
   return text ? [text] : [];
 }
 
-function weeklyServiceCount(quantity) {
-  const n = parsePlanQuantity(quantity);
-  if (n === null || !Number.isInteger(n)) return null;
-  return ({ 10: 2, 14: 3, 23: 5, 27: 6, 31: 7 })[n] ?? null;
-}
+function serviceSchedule(serviceItem) {
+  const quantity = parsePlanQuantity(serviceItem?.qty);
+  const weekly = parsePlanQuantity(serviceItem?.weekly_qty);
+  if (quantity === null || weekly === null || weekly <= 0) return "";
 
-function serviceSchedule(quantity) {
-  const w = weeklyServiceCount(quantity);
-  const n = parsePlanQuantity(quantity);
-  if (w === null || n === null) return "";
-  return `${w}次*4.5週=${planNumber(n)}單位`;
+  // 只有「每週次數 × 4.5」與月單位相符時才顯示換算式。
+  // 若每次服務含多個單位（例如一週3天、每次2單位），單靠目前欄位無法正確推算，
+  // 因此寧可不顯示，也不要產生錯誤的固定換算式。
+  const estimated = Math.round(weekly * 4.5);
+  if (estimated !== Math.round(quantity)) return "";
+  return `${planNumber(weekly)}次*4.5週=${planNumber(quantity)}單位`;
 }
 
 function executionMap(ai) {
@@ -569,14 +592,82 @@ function serviceLine(s, map) {
   const quantity = planClean(s.qty);
   const base = `${code}[${name}]*${quantity}單位/月`;
   const note = planClean(map[code]);
-  const schedule = serviceSchedule(quantity);
-  // 與桌面版 build_service_plan_line 完全一致：有換算式時固定保留「/執行內容」。
-  if (schedule) return `${base}(${schedule}/${note})`;
+  const schedule = serviceSchedule(s);
+  if (schedule && note) return `${base}(${schedule}/${note})`;
+  if (schedule) return `${base}(${schedule})`;
   if (note) return `${base}(${note})`;
   return base;
 }
 
+function allowedProblemServiceMap(d) {
+  const map = {};
+  (d.selected_services || []).forEach((x) => {
+    const code = planClean(x.code);
+    if (code) map[code] = planClean(x.name);
+  });
+
+  const transport = d.transport || {};
+  if (transport.enabled) map.DA01 = "交通接送";
+
+  const respite = d.respite || {};
+  (respite.items || []).forEach((x) => {
+    const code = planClean(x.code);
+    if (code) map[code] = planClean(x.name);
+  });
+
+  const aid = d.assistive_device || {};
+  (aid.items || []).forEach((x) => {
+    const text = planClean(x.item);
+    const m = text.match(/^([A-Z]{1,3}\d+(?:-\d+)?)/i);
+    if (m) map[m[1].toUpperCase()] = text.replace(m[1], "").replace(/^[\s\[【(（:-]+|[\]】)）]+$/g, "").trim() || "輔具";
+  });
+
+  const meal = d.meal || {};
+  if (meal.enabled) map.OT01 = "營養餐飲";
+  return map;
+}
+
+function renderProblemItems(ai, d, mode) {
+  const rawItems = Array.isArray(ai?.problem_items) ? ai.problem_items : [];
+  if (!rawItems.length) return [""];
+
+  const allowed = allowedProblemServiceMap(d);
+  const numerals = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
+  const lines = [];
+
+  rawItems.slice(0, 10).forEach((item, idx) => {
+    if (typeof item === "string") {
+      const text = planClean(item);
+      if (text) lines.push(`(${numerals[idx] || idx + 1})${text}`);
+      return;
+    }
+
+    const title = planClean(item?.title) || "照顧問題";
+    const analysis = planClean(item?.analysis);
+    const resolution = planClean(item?.resolution);
+    const requestedCodes = Array.isArray(item?.service_codes) ? item.service_codes : [];
+    const safeCodes = requestedCodes
+      .map((c) => planClean(c).toUpperCase())
+      .filter((c, i, arr) => c && allowed[c] && arr.indexOf(c) === i);
+
+    let text = `(${numerals[idx] || idx + 1})${title}`;
+    if (analysis) text += `：${analysis}`;
+
+    if (safeCodes.length) {
+      const codeText = safeCodes.map((code) => `${code}[${allowed[code]}]`).join("、");
+      text += `→核定${codeText}`;
+    } else if (resolution) {
+      text += `→${resolution}`;
+    }
+
+    lines.push(text);
+  });
+
+  return lines.length ? lines : [""];
+}
+
 function renderPlan(ai, d, interventionChange) {
+  const mode = planClean(d.writing_mode) || "standard";
   const identity = planClean(d.identity);
   const identityShort = identity ? identity.split("（", 1)[0] : "未填";
   const cmsLevel = planClean(d.cms_level);
@@ -611,28 +702,25 @@ function renderPlan(ai, d, interventionChange) {
 
   const careItems = asList(ai?.care_analysis);
   if (careItems.length) {
-    careItems.forEach((text, idx) => lines.push(`${idx + 1}.${planClean(text)}`));
-  } else {
-    lines.push("1.未於照專計畫簡述中取得足夠資訊。");
+    if (mode === "compact" && careItems.length === 1) {
+      lines.push(planClean(careItems[0]));
+    } else {
+      careItems.forEach((text, idx) => lines.push(`${idx + 1}.${planClean(text)}`));
+    }
   }
 
-  const economic = planClean(ai?.economic_analysis) || "未於照專計畫簡述中載明。";
-  const environment = planClean(ai?.environment_analysis) || "未於照專計畫簡述中載明。";
-  const social = planClean(ai?.social_analysis) || "未於照專計畫簡述中載明。";
-  const strengths = planClean(ai?.strengths_analysis) || "未於照專計畫簡述中載明。";
+  const analysisSections = [
+    ["(二)經濟面：", planClean(ai?.economic_analysis)],
+    ["(三)環境面：", planClean(ai?.environment_analysis)],
+    ["(四)社交面：", planClean(ai?.social_analysis)],
+    ["(五)個案/家庭優勢：", planClean(ai?.strengths_analysis)],
+  ];
+  analysisSections.forEach(([label, value]) => lines.push(label + value));
+
   const intervention = planClean(interventionChange) || "尚未使用";
-
-  lines.push(
-    `(二)經濟面：${economic}`,
-    `(三)環境面：${environment}`,
-    `(四)社交面：${social}`,
-    `(五)個案/家庭優勢：${strengths}`,
-    `(六)服務介入後改變：${intervention}。`,
-    "三、照顧問題清單"
-  );
-
-  // 桌面版目前固定預留五行。
-  lines.push("", "", "", "", "");
+  lines.push(`(六)服務介入後改變：${intervention.replace(/。+$/, "")}。`);
+  lines.push("三、照顧問題清單");
+  lines.push(...renderProblemItems(ai, d, mode));
 
   const selected = Array.isArray(d.selected_services) ? d.selected_services : [];
   const careServices = selected.filter((x) => x.group === "care");
@@ -647,11 +735,19 @@ function renderPlan(ai, d, interventionChange) {
   lines.push(
     "四、照顧計畫",
     `(一)身分別：${identityShort}`,
-    cmsLine,
-    "(三)依據照專勾選之照顧問題清單，與案家討論服務內容如下:",
-    "1.照顧服務："
+    cmsLine
   );
 
+  const foreign = d.professional_30_percent || {};
+  if (foreign.enabled) {
+    const amount = planClean(foreign.amount);
+    lines.push(`(聘用外籍看護，僅能使用30%額度${amount ? ` ${amount}元/月` : ""})`);
+  }
+
+  lines.push("(三)依據照專勾選之照顧問題清單，與案家討論服務內容如下:");
+
+  let sectionNo = 1;
+  lines.push(`${sectionNo++}.照顧服務：`);
   if (serviceItems.length) serviceItems.forEach((x) => lines.push(serviceLine(x, emap)));
   else lines.push("案家目前暫無使用之需求。");
 
@@ -686,28 +782,29 @@ function renderPlan(ai, d, interventionChange) {
   }
 
   const unit = d.unit_selection || {};
-  const mode = planClean(unit.mode);
+  const unitModeValue = planClean(unit.mode);
   const designatedUnit = planClean(unit.designated_unit);
   const rotationUnit = planClean(unit.rotation_unit);
-  if (mode === "designated" && designatedUnit) lines.push(`(案家指定，照會單位：${designatedUnit})`);
-  else if (mode === "rotation" && rotationUnit) lines.push(`(依輪派原則進行照會：${rotationUnit})`);
+  if (unitModeValue === "designated" && designatedUnit) lines.push(`(案家指定，照會單位：${designatedUnit})`);
+  else if (unitModeValue === "rotation" && rotationUnit) lines.push(`(依輪派原則進行照會：${rotationUnit})`);
 
-  lines.push("2.專業服務：");
+  const professionalTitleIndex = lines.length;
+  lines.push(`${sectionNo++}.專業服務：`);
   if (professionalServices.length) professionalServices.forEach((x) => lines.push(serviceLine(x, emap)));
-  else lines[lines.length - 1] += "案家目前暫無使用之需求。";
+  else lines[professionalTitleIndex] += "案家目前暫無使用之需求。";
 
   const transport = d.transport || {};
   if (transport.enabled) {
     const parts = ["交通接送"];
     if (planClean(transport.unit)) parts.push(`照會單位：${planClean(transport.unit)}`);
     if (planClean(transport.phone)) parts.push(`電話：${planClean(transport.phone)}`);
-    lines.push("3.交通服務：" + parts.join("；") + "。");
+    lines.push(`${sectionNo++}.交通服務：` + parts.join("；") + "。");
   } else {
-    lines.push("3.交通服務：案家目前暫無使用之需求。");
+    lines.push(`${sectionNo++}.交通服務：案家目前暫無使用之需求。`);
   }
 
   const aid = d.assistive_device || {};
-  let aidTitle = "4.輔具服務及居家無障礙環境改善服務";
+  let aidTitle = `${sectionNo++}.輔具服務及居家無障礙環境改善服務`;
   const aidDetails = [];
   if (planClean(aid.period)) aidDetails.push(`起訖日:${planClean(aid.period)}`);
   if (planClean(aid.quota)) aidDetails.push(`3年${planNumber(aid.quota)}元`);
@@ -740,21 +837,27 @@ function renderPlan(ai, d, interventionChange) {
         parts.push(`${code}[${name}]${unitText}`);
       }
     });
-    if (parts.length) lines.push("5.喘息服務：" + parts.join("、"));
-    else lines.push("5.喘息服務：案家目前暫無使用之需求。");
+    if (parts.length) lines.push(`${sectionNo++}.喘息服務：` + parts.join("、"));
+    else lines.push(`${sectionNo++}.喘息服務：案家目前暫無使用之需求。`);
   } else {
-    lines.push("5.喘息服務：案家目前暫無使用之需求。");
+    lines.push(`${sectionNo++}.喘息服務：案家目前暫無使用之需求。`);
+  }
+
+  const special = planClean(d.special_plan_items);
+  if (special) {
+    lines.push(`${sectionNo++}.特殊服務／其他核定事項：`);
+    special.split(/\r?\n/).map(planClean).filter(Boolean).forEach((x) => lines.push(x));
   }
 
   const meal = d.meal || {};
   if (meal.enabled) {
     const count = planClean(meal.count_per_month);
-    let mealLine = "6.送餐服務：OT01[營養餐飲](10801)";
+    let mealLine = `${sectionNo++}.送餐服務：OT01[營養餐飲](10801)`;
     if (count) mealLine += `*${count}單位/月`;
     lines.push(mealLine);
     if (planClean(meal.unit)) lines.push(`(照會單位：${planClean(meal.unit)})`);
   } else {
-    lines.push("6.送餐服務：案家目前暫無使用之需求。");
+    lines.push(`${sectionNo++}.送餐服務：案家目前暫無使用之需求。`);
   }
 
   lines.push(`五、其他資源運用：${planClean(d.other_service) || "無"}`);
@@ -781,6 +884,12 @@ function demoAI(src, d) {
     social_analysis: "【示範模式】正式版由 AI 依照專原文整理。",
     strengths_analysis: "【示範模式】正式版由 AI 依照專原文整理。",
     cms_change_note: "",
+    problem_items: d.selected_services.length ? [{
+      title: "照顧服務需求",
+      analysis: "【示範】正式版會依照專內容整理問題、原因與目前處理方式。",
+      service_codes: d.selected_services.slice(0, 3).map((s) => s.code),
+      resolution: ""
+    }] : [],
     service_execution: d.selected_services.map((s) => ({
       code: s.code,
       execution_note: "【示範】正式版將依照專內容補入實際協助內容與目的。",
@@ -854,12 +963,13 @@ async function generate() {
     const ai = await callAI({
       source_text: $("#sourceText").value.trim(),
       change_form_data: d,
-      intervention_change: $("#interventionSelect").value,
+      writing_mode: currentWritingMode(),
+      intervention_change: currentIntervention(),
     });
-    $("#outputText").value = renderPlan(ai, d, $("#interventionSelect").value);
+    $("#outputText").value = renderPlan(ai, d, currentIntervention());
     $("#outputStatus").textContent = CONFIG.DEMO_MODE
       ? "目前為示範模式：照顧問題分析為示意文字；服務與金額格式為正式邏輯。"
-      : "AI 產生完成；固定格式已依桌面版規則整理。";
+      : `AI 產生完成；目前為${currentWritingMode() === "compact" ? "精簡" : currentWritingMode() === "detailed" ? "詳細" : "標準"}撰寫模式。`;
     $("#outputSection").classList.remove("hidden");
     showToast("個管照顧計畫產生完成");
     $("#outputSection").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -871,7 +981,7 @@ async function generate() {
     btn.textContent = "AI 產生個管計畫";
     $("#retryBtn").disabled = false;
     $("#errorRetryBtn").disabled = false;
-    $("#generateHint").textContent = "服務資料由網頁固定，AI 只整理照專內容與各服務執行目的。";
+    $("#generateHint").textContent = "固定資料由網頁控制；AI 依撰寫模式整理照顧問題分析、問題清單與服務執行目的。";
   }
 }
 
@@ -895,7 +1005,7 @@ function updateModeBanner() {
     b.innerHTML = "<strong>網頁測試版</strong><span>不連線照管平台；目前 AI 為示範模式，可先確認操作流程與產出格式。</span>";
   } else {
     b.className = "mode-banner live";
-    b.innerHTML = "<strong>AI 已啟用</strong><span>照專內容會送至 Cloudflare Worker，由後端呼叫 AI；服務碼、金額與照會單位仍由網頁固定。</span>";
+    b.innerHTML = "<strong>AI 已啟用</strong><span>照專內容由 AI 彈性整理；服務碼、月單位、金額與照會單位仍由網頁固定。</span>";
   }
 }
 
@@ -914,7 +1024,9 @@ function loadSample() {
   $("#designatedUnit").value = "大安心喜樂福祉有限公司";
   $("#mealEnabled").checked = true;
   $("#mealCount").value = "62";
+  $("#writingModeSelect").value = "standard";
   $("#interventionSelect").value = "尚未使用";
+  $("#interventionCustom").classList.add("hidden");
   $("#sourceText").value = "115年9月1日 11:00與個案本人共訪，照專藍尹謙評估。個案近期因下肢無力，沐浴及部分日常生活需他人協助，家庭可提供部分支持。照顧計畫於115年9月2日送出。";
   $("#charCount").textContent = `${$("#sourceText").value.length} 字`;
   renderAll();
@@ -932,7 +1044,9 @@ function resetAll(confirmFirst = true) {
   document.querySelectorAll("input[type=checkbox],input[type=radio]").forEach((x) => x.checked = false);
   $("#identitySelect").value = "第三類（一般戶）";
   $("#cmsSelect").value = "第4級";
+  $("#writingModeSelect").value = "standard";
   $("#interventionSelect").value = "尚未使用";
+  $("#interventionCustom").classList.add("hidden");
   $("#designatedUnit").disabled = true;
   $("#rotationUnit").disabled = true;
   $$(".filter-chip").forEach((x) => x.classList.toggle("active", x.dataset.filter === "all"));

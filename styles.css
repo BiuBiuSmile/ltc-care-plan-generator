@@ -74,3 +74,13 @@
 
 /* v5.1：錯誤面板隱藏修正 */
 .error-panel.hidden{display:none}
+
+/* ==========================================================
+   v6：彈性模板
+   ========================================================== */
+.compact-textarea{min-height:96px;resize:vertical;line-height:1.6}
+.mode-helper{margin-top:8px!important;line-height:1.55}
+.spaced-field{display:block;margin-top:16px}
+#writingModeSelect{font-weight:800;background:#fbfdfe}
+#interventionCustom{margin-top:9px}
+#interventionCustom.hidden{display:none}
