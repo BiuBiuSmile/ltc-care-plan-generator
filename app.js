@@ -177,6 +177,18 @@ function bind() {
     if (!custom) $("#interventionCustom").value = "";
   });
 
+  // 喘息服務：勾選任一 GA 項目時，自動啟用「喘息服務」主開關，避免資料狀態互相矛盾。
+  $("#respiteList").addEventListener("change", (e) => {
+    if (!e.target.matches('input[type="checkbox"][data-code]')) return;
+    const anySelected = Boolean($("#respiteList").querySelector('input[type="checkbox"][data-code]:checked'));
+    if (anySelected) $("#respiteEnabled").checked = true;
+  });
+  $("#respiteEnabled").addEventListener("change", () => {
+    // 關閉主開關時同步取消子項目，避免畫面顯示「未啟用」但仍殘留 GA09 等核定碼。
+    if ($("#respiteEnabled").checked) return;
+    $("#respiteList").querySelectorAll('input[type="checkbox"][data-code]').forEach((x) => { x.checked = false; });
+  });
+
   $("#addAidBtn").addEventListener("click", () => {
     state.aidItems.push({ item: "", subsidy: "" });
     markDirty();
@@ -395,9 +407,20 @@ function renderAidItems() {
   });
 }
 
+function selectedRespiteItems() {
+  return DATA.respite
+    .filter((r) => $(`[data-code="${r.code}"]`).checked)
+    .map((r) => ({
+      code: r.code,
+      name: r.name,
+      approved: $(`[data-count="${r.code}"]`).value.trim(),
+    }));
+}
+
 function collect() {
   const ident = currentIdentity();
   const idInfo = identityInfo[ident];
+  const respiteItems = selectedRespiteItems();
   return {
     identity: ident,
     cms_level: currentCMS(),
@@ -434,14 +457,10 @@ function collect() {
         .map((x) => ({ item: x.item.trim(), subsidy: String(x.subsidy).trim() })),
     },
     respite: {
-      enabled: $("#respiteEnabled").checked,
-      items: DATA.respite
-        .filter((r) => $(`[data-code="${r.code}"]`).checked)
-        .map((r) => ({
-          code: r.code,
-          name: r.name,
-          approved: $(`[data-count="${r.code}"]`).value.trim(),
-        })),
+      // 只要有勾選任一 GA 項目，就視為喘息服務已啟用。
+      // 這是第二層防呆，即使主開關因瀏覽器狀態不同步，也不會漏掉 GA09。
+      enabled: $("#respiteEnabled").checked || respiteItems.length > 0,
+      items: respiteItems,
     },
     meal: {
       enabled: $("#mealEnabled").checked,
@@ -483,6 +502,11 @@ function validate(data) {
   if (data.unit_selection.mode === "rotation" && !data.unit_selection.rotation_unit) {
     alert("已選擇「不指定服務單位」，請填寫輪派單位。");
     $("#rotationUnit").focus();
+    return false;
+  }
+  if (data.respite.enabled && !data.respite.items.length) {
+    alert("已啟用喘息服務，請至少勾選一項喘息服務（例如 GA09）。");
+    $("#step4").scrollIntoView({ behavior: "smooth" });
     return false;
   }
   for (const r of data.respite.items) {
