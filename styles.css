@@ -13,3 +13,61 @@
 .mobile-summary{display:none;position:fixed;left:10px;right:10px;bottom:10px;z-index:40;background:rgba(41,72,92,.96);color:#fff;border-radius:15px;padding:10px 12px;box-shadow:0 12px 30px rgba(30,48,60,.28);align-items:center;justify-content:space-between;gap:12px}.mobile-summary div{display:flex;gap:9px;align-items:baseline}.mobile-summary span{font-size:13px;opacity:.85}.mobile-summary button{border:0;border-radius:10px;padding:8px 12px;background:white;color:var(--accent-dark);font-weight:900}
 @media(max-width:1320px){.floating-summary{display:none}}
 @media(max-width:720px){.three-col{grid-template-columns:1fr}.mobile-summary{display:flex}.footer-note{padding-bottom:82px}.error-panel{align-items:stretch;flex-direction:column}.error-panel button{width:100%}.toast{bottom:78px}}
+
+/* ==========================================================
+   v5：桌面網頁版（Desktop-first）
+   ========================================================== */
+@media (min-width: 721px) {
+  body{background:linear-gradient(135deg,#e7f0f4 0%,#f8fbfc 45%,#edf4f6 100%)}
+  .app-shell{max-width:1720px;width:100%;margin:0 auto;padding:0 18px}
+  .topbar{padding:26px 12px 18px;align-items:center}
+  .topbar h1{font-size:34px}
+  main{padding:0 10px 46px}
+  .mode-banner{margin:0 0 18px}
+  .desktop-version-badge{display:inline-flex;margin:0 0 0 10px;padding:5px 10px;border-radius:999px;background:#dce9ef;color:#4d748d;font-size:12px;font-weight:900;vertical-align:middle}
+  .desktop-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:22px;align-items:start}
+  .workflow-column{min-width:0;display:grid;gap:18px}
+  .workflow-column>.card,.workflow-column>.generate-card,.workflow-column>.error-panel{margin:0}
+  .desktop-grid{display:grid;gap:18px;align-items:start;min-width:0}
+  .desktop-grid>.card{margin:0;min-width:0}
+  .desktop-grid-services{grid-template-columns:minmax(0,1.55fr) minmax(360px,.85fr)}
+  .desktop-grid-settings{grid-template-columns:minmax(0,1.25fr) minmax(390px,.75fr)}
+  .desktop-stack{display:grid;gap:18px;min-width:0}
+  .desktop-stack>.card{margin:0}
+  .card{padding:22px;border-radius:18px}
+  .service-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  #step2 .service-list{max-height:720px;overflow:auto;padding-right:5px}
+  #step3{position:sticky;top:16px}
+  #step3 .approved-list{max-height:400px;overflow:auto;padding-right:4px}
+  .source-textarea{min-height:360px}
+  .output-textarea{min-height:720px;font-family:"Microsoft JhengHei UI","Noto Sans TC",system-ui,sans-serif;font-size:15px}
+  .generate-card{border-radius:18px;padding:22px 24px}
+  .generate-card .primary-button{min-width:220px;font-size:16px}
+  .desktop-sidebar{position:sticky;top:16px;display:grid;gap:14px;max-height:calc(100vh - 32px);overflow:auto;padding-bottom:4px}
+  .sidebar-card{position:static!important;display:block!important;width:auto!important;margin:0;background:rgba(249,252,253,.98);border:1px solid var(--border);border-radius:18px;padding:15px;box-shadow:var(--shadow);backdrop-filter:blur(10px)}
+  .desktop-step-nav h3{margin:0 0 4px;font-size:17px}
+  .sidebar-note{margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.5}
+  .sidebar-step{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:11px;color:var(--text);text-decoration:none;font-size:13px;font-weight:800;transition:.15s}
+  .sidebar-step:hover{background:#edf4f6;color:var(--accent-dark);transform:translateX(2px)}
+  .sidebar-step-no{display:inline-grid;place-items:center;width:25px;height:25px;border-radius:8px;background:var(--accent-soft);color:var(--accent-dark);font-size:12px;font-weight:900;flex:0 0 auto}
+  .floating-summary{top:auto;right:auto;z-index:auto}
+  .floating-items{max-height:260px}
+  .mobile-summary{display:none!important}
+  .footer-note{margin:0}
+}
+
+@media (min-width: 1480px) {
+  .desktop-layout{grid-template-columns:minmax(0,1fr) 320px;gap:26px}
+  .desktop-grid-services{grid-template-columns:minmax(0,1.65fr) minmax(390px,.8fr)}
+  .service-list{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .card{padding:24px}
+}
+
+@media (min-width: 721px) and (max-width: 1180px) {
+  .app-shell{max-width:1180px;padding:0 12px}
+  .desktop-layout{grid-template-columns:1fr}
+  .desktop-sidebar{display:none}
+  .desktop-grid-services,.desktop-grid-settings{grid-template-columns:1fr}
+  #step3{position:static}
+  #step2 .service-list{max-height:none;overflow:visible}
+}
