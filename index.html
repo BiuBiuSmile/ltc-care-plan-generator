@@ -5,18 +5,18 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
 <meta content="#648da7" name="theme-color"/>
-<meta content="個管照顧計畫產生器彈性模板版：固定服務資料、彈性照顧問題分析與照顧問題清單。" name="description"/>
-<title>個管照顧計畫產生器｜彈性模板版</title>
+<meta content="個管照顧計畫產生器品質檢核版：固定服務資料、彈性文字整理，產出後自動核對服務碼、月單位、CMS、金額、照會單位與來源佐證。" name="description"/>
+<title>個管照顧計畫產生器｜v7 品質檢核版</title>
 <link href="icon.png" rel="icon" type="image/png"/>
-<link href="styles.css?v=6" rel="stylesheet"/>
+<link href="styles.css?v=7" rel="stylesheet"/>
 </head>
 <body>
 <div class="app-shell">
 <header class="topbar">
 <div>
-<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v6 彈性模板</span>
+<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v7 品質檢核</span>
 <h1>個管照顧計畫產生器</h1>
-<p class="subtitle">先選好服務，再貼上照專計畫簡述；固定資料由系統控制，文字內容則依「精簡／標準／詳細」模式彈性整理。</p>
+<p class="subtitle">先選好服務，再貼上照專計畫簡述；AI 完成後會自動核對固定資料與來源佐證，將需要人工確認的項目直接標示出來。</p>
 </div>
 <div class="top-actions">
 <button class="ghost-button" id="sampleBtn" type="button">載入範例</button>
@@ -152,6 +152,22 @@
 </section><section class="card output-card hidden" id="outputSection">
 <div class="section-heading"><div><p class="step">完成</p><h2>個管照顧計畫</h2></div><div class="output-actions"><button class="secondary-button" id="retryBtn" type="button">重新產生</button><button class="secondary-button" id="copyBtn" type="button">複製結果</button></div></div>
 <div class="output-status" id="outputStatus"></div>
+<section class="quality-panel" id="qualityPanel">
+<div class="quality-head">
+<div>
+<p class="step">QUALITY CHECK</p>
+<h3>自動品質檢核</h3>
+<p class="helper">核對固定資料、AI 服務碼與原文佐證。來源佐證代表有可回查片段，不等於每一句都已完全人工確認。</p>
+</div>
+<div class="quality-head-actions">
+<span class="quality-overall pending" id="qualityOverall">尚未檢核</span>
+<button class="secondary-button small" id="qualityRecheckBtn" type="button">重新檢核</button>
+</div>
+</div>
+<div class="quality-summary" id="qualitySummary"></div>
+<div class="quality-list" id="qualityList"></div>
+</section>
+<label class="output-edit-label" for="outputText">產出結果可直接修改；修改後請按「重新檢核」。</label>
 <textarea class="output-textarea" id="outputText"></textarea>
 </section><p class="footer-note">GitHub Pages 只負責畫面與資料整理；AI 透過 Cloudflare Worker 呼叫，OpenAI API Key 不會放在前端；服務碼、單位數與金額仍由網頁固定。</p></div><aside aria-label="桌面版快速導覽" class="desktop-sidebar"><nav aria-label="填寫步驟" class="sidebar-card desktop-step-nav"><h3>填寫進度</h3><p class="sidebar-note">桌面版可直接由右側快速跳到各區塊。</p><a class="sidebar-step" href="#step1"><span class="sidebar-step-no">1</span><span>基本核定資料</span></a><a class="sidebar-step" href="#step2"><span class="sidebar-step-no">2</span><span>選擇服務項目</span></a><a class="sidebar-step" href="#step3"><span class="sidebar-step-no">3</span><span>已選服務與額度</span></a><a class="sidebar-step" href="#step4"><span class="sidebar-step-no">4</span><span>其他服務</span></a><a class="sidebar-step" href="#step5"><span class="sidebar-step-no">5</span><span>服務單位選擇</span></a><a class="sidebar-step" href="#step6"><span class="sidebar-step-no">6</span><span>撰寫模式／介入改變</span></a><a class="sidebar-step" href="#step7"><span class="sidebar-step-no">7</span><span>貼上照專計畫</span></a><a class="sidebar-step" href="#step8"><span class="sidebar-step-no">8</span><span>產生個管計畫</span></a></nav><aside aria-label="已選服務快速摘要" class="sidebar-card floating-summary" id="floatingSummary">
 <div class="floating-summary-head"><strong>已選服務</strong><span id="floatingCount">0 項</span></div>
@@ -186,8 +202,8 @@
 </div>
 </div>
 <div aria-live="polite" class="toast hidden" id="toast" role="status"></div>
-<script src="data.js?v=6"></script>
-<script src="config.js?v=6"></script>
-<script src="app.js?v=6"></script>
+<script src="data.js?v=7"></script>
+<script src="config.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

@@ -18,6 +18,7 @@ const state = {
 
 let generationController = null;
 let toastTimer = null;
+let lastQualityContext = null;
 
 const identityInfo = {
   "第三類（一般戶）": { rate: 16, key: "general", label: "一般戶" },
@@ -190,6 +191,8 @@ function bind() {
   $("#retryBtn").addEventListener("click", generate);
   $("#errorRetryBtn").addEventListener("click", generate);
   $("#copyBtn").addEventListener("click", copyOutput);
+  $("#qualityRecheckBtn").addEventListener("click", recheckQuality);
+  $("#outputText").addEventListener("input", markQualityStale);
   $("#sampleBtn").addEventListener("click", loadSample);
   $("#resetBtn").addEventListener("click", resetAll);
   $("#floatingGoBtn").addEventListener("click", () => $("#step3").scrollIntoView({ behavior: "smooth" }));
@@ -864,6 +867,220 @@ function renderPlan(ai, d, interventionChange) {
   return lines.join("\n");
 }
 
+
+function normalizeForEvidence(value) {
+  return String(value ?? "")
+    .replace(/\s+/g, "")
+    .replace(/[，,]/g, "，")
+    .replace(/[。．.]/g, "。")
+    .replace(/[：:]/g, "：")
+    .trim();
+}
+
+function extractCodesFromText(value) {
+  const text = String(value ?? "").toUpperCase();
+  const matches = text.match(/(?:BA|BB|BD|CA|CB|CC|CD|DA|EA|EB|EG|GA|SC|OT|AA)\d+(?:-\d+)?/g) || [];
+  return [...new Set(matches)];
+}
+
+function selectedServiceCodeSet(d) {
+  return new Set((d.selected_services || []).map((x) => planClean(x.code).toUpperCase()).filter(Boolean));
+}
+
+function qualityAllowedCodeSet(d) {
+  const set = new Set(Object.keys(allowedProblemServiceMap(d)));
+  extractCodesFromText(d.special_plan_items || "").forEach((c) => set.add(c));
+  return set;
+}
+
+function expectedCareTotals(d) {
+  const identity = planClean(d.identity);
+  let burdenKey = "general";
+  let burdenRate = 16;
+  if (identity.startsWith("第一類")) { burdenKey = null; burdenRate = 0; }
+  else if (identity.startsWith("第二類")) { burdenKey = "lowmid"; burdenRate = 5; }
+
+  const serviceItems = (d.selected_services || []).filter((x) => x.group === "care" || x.group === "daycare");
+  let total = 0;
+  let burden = 0;
+  let valid = serviceItems.length > 0;
+  serviceItems.forEach((x) => {
+    const qty = parsePlanQuantity(x.qty);
+    if (qty === null) { valid = false; return; }
+    total += Number(x.amount || 0) * qty;
+    if (burdenKey) burden += Number(x[burdenKey] || 0) * qty;
+  });
+  return { valid, total, burden, burdenRate, serviceItems };
+}
+
+function qualityEvidenceSections(ai) {
+  return [
+    ["visit", Boolean(planClean(ai?.visit_date) || planClean(ai?.visit_time) || planClean(ai?.interviewees) || planClean(ai?.assessor_name) || planClean(ai?.submission_date)), "歷程記錄"],
+    ["care_analysis", asList(ai?.care_analysis).length > 0, "照顧面"],
+    ["economic_analysis", Boolean(planClean(ai?.economic_analysis)), "經濟面"],
+    ["environment_analysis", Boolean(planClean(ai?.environment_analysis)), "環境面"],
+    ["social_analysis", Boolean(planClean(ai?.social_analysis)), "社交面"],
+    ["strengths_analysis", Boolean(planClean(ai?.strengths_analysis)), "個案／家庭優勢"],
+    ["problem_items", Array.isArray(ai?.problem_items) && ai.problem_items.length > 0, "照顧問題清單"],
+    ["service_execution", Array.isArray(ai?.service_execution) && ai.service_execution.some((x) => planClean(x?.execution_note)), "服務執行說明"],
+  ];
+}
+
+function runQualityChecks(ai, d, outputText, sourceText) {
+  const checks = [];
+  const push = (status, title, detail) => checks.push({ status, title, detail });
+  const output = String(outputText || "");
+  const allowedCodes = qualityAllowedCodeSet(d);
+  const selectedCodes = selectedServiceCodeSet(d);
+
+  // 1. 服務碼：固定輸出 + AI 原始回傳雙重檢查
+  const actualCodes = new Set(extractCodesFromText(output));
+  const unexpectedOutput = [...actualCodes].filter((c) => !allowedCodes.has(c));
+  const requiredCodes = new Set([...selectedCodes]);
+  (d.respite?.items || []).forEach((x) => { const c = planClean(x.code).toUpperCase(); if (c) requiredCodes.add(c); });
+  (d.assistive_device?.items || []).forEach((x) => extractCodesFromText(x.item).forEach((c) => requiredCodes.add(c)));
+  if (d.meal?.enabled) requiredCodes.add("OT01");
+  extractCodesFromText(d.special_plan_items || "").forEach((c) => requiredCodes.add(c));
+  const missingCodes = [...requiredCodes].filter((c) => !actualCodes.has(c));
+
+  const aiAttemptedCodes = [];
+  (ai?.problem_items || []).forEach((x) => (x?.service_codes || []).forEach((c) => aiAttemptedCodes.push(planClean(c).toUpperCase())));
+  (ai?.service_execution || []).forEach((x) => { const c = planClean(x?.code).toUpperCase(); if (c) aiAttemptedCodes.push(c); });
+  const unsafeAiCodes = [...new Set(aiAttemptedCodes)].filter((c) => c && !allowedCodes.has(c));
+
+  if (unexpectedOutput.length || missingCodes.length) {
+    const details = [];
+    if (unexpectedOutput.length) details.push(`產出出現未核定碼：${unexpectedOutput.join("、")}`);
+    if (missingCodes.length) details.push(`產出漏掉核定碼：${missingCodes.join("、")}`);
+    push("error", "服務碼一致性", details.join("\n"));
+  } else if (unsafeAiCodes.length) {
+    push("warn", "服務碼一致性", `最終固定格式正確，但 AI 原始回傳曾嘗試使用未允許服務碼：${unsafeAiCodes.join("、")}。系統已阻擋，建議人工看一次問題清單。`);
+  } else {
+    push("pass", "服務碼一致性", `已核對 ${requiredCodes.size} 個核定／使用者登打服務碼，未發現多出或漏掉。`);
+  }
+
+  // 2. 月單位數
+  const qtyErrors = [];
+  (d.selected_services || []).forEach((x) => {
+    const code = planClean(x.code);
+    const qty = planClean(x.qty);
+    const line = output.split(/\r?\n/).find((ln) => ln.trim().startsWith(code + "["));
+    if (!line || !line.includes(`*${qty}單位/月`)) qtyErrors.push(`${code} 應為 ${qty} 單位/月`);
+  });
+  if (qtyErrors.length) push("error", "月單位數", qtyErrors.join("\n"));
+  else push("pass", "月單位數", `已核對 ${(d.selected_services || []).length} 個服務項目的月單位數。`);
+
+  // 3. CMS / 身分別
+  const cmsNumber = planClean(d.cms_level).replace("第", "").replace("級", "");
+  const cmsAmount = DATA.cms[d.cms_level];
+  const identityShort = planClean(d.identity).split("（", 1)[0];
+  const cmsOk = output.includes(`CMS ${cmsNumber}`) && output.includes(`${planNumber(cmsAmount)}元/月`);
+  const identityOk = output.includes(`(一)身分別：${identityShort}`);
+  if (cmsOk && identityOk) push("pass", "CMS 與身分別", `CMS ${cmsNumber}、額度 ${planNumber(cmsAmount)} 元/月及${identityShort}皆一致。`);
+  else push("error", "CMS 與身分別", `${!identityOk ? "身分別不一致。" : ""}${!cmsOk ? "CMS 等級或額度不一致。" : ""}`);
+
+  // 4. 金額 / 部分負擔（照顧+日照固定段落）
+  const totals = expectedCareTotals(d);
+  if (!totals.serviceItems.length) {
+    push("pass", "照顧服務金額", "本次未選取照顧／日照服務，無固定金額可核對。");
+  } else if (!totals.valid) {
+    push("warn", "照顧服務金額", "部分服務月單位無法解析，請人工確認金額。");
+  } else {
+    const expectedLine = `以上擬訂計畫為:${planNumber(totals.total)}元/月，個案部分負擔為${totals.burdenRate}%為${planNumber(totals.burden)}元/月。`;
+    if (output.includes(expectedLine)) push("pass", "照顧服務金額", `總額 ${planNumber(totals.total)} 元/月；部分負擔 ${totals.burdenRate}%＝${planNumber(totals.burden)} 元/月。`);
+    else push("error", "照顧服務金額", `固定計算結果應為：${expectedLine}`);
+  }
+
+  // 5. 照會單位
+  const unit = d.unit_selection || {};
+  let expectedUnit = "";
+  if (unit.mode === "designated" && planClean(unit.designated_unit)) expectedUnit = `(案家指定，照會單位：${planClean(unit.designated_unit)})`;
+  if (unit.mode === "rotation" && planClean(unit.rotation_unit)) expectedUnit = `(依輪派原則進行照會：${planClean(unit.rotation_unit)})`;
+  if (expectedUnit && output.includes(expectedUnit)) push("pass", "服務單位", expectedUnit);
+  else if (expectedUnit) push("error", "服務單位", `產出未找到正確照會單位：${expectedUnit}`);
+
+  // 6. 問題清單對應核定服務
+  const mapped = new Set();
+  (ai?.problem_items || []).forEach((x) => (x?.service_codes || []).forEach((c) => {
+    const code = planClean(c).toUpperCase();
+    if (selectedCodes.has(code)) mapped.add(code);
+  }));
+  const unmapped = [...selectedCodes].filter((c) => !mapped.has(c));
+  if (!selectedCodes.size) push("pass", "問題清單對應", "本次未選取照顧／專業／日照服務，無需比對服務對應。");
+  else if (!unmapped.length) push("pass", "問題清單對應", `已將 ${mapped.size}/${selectedCodes.size} 個已選服務碼連結至照顧問題。`);
+  else push("warn", "問題清單對應", `有 ${unmapped.length} 個已選服務碼尚未在 AI 問題清單中建立直接對應：${unmapped.join("、")}。這不一定是錯誤，但建議人工確認。`);
+
+  // 7. 來源佐證：Worker 要求 AI 回傳原文短片段，再由前端實際比對是否存在於來源文字
+  const evidence = ai?.source_evidence;
+  if (!evidence || typeof evidence !== "object") {
+    push("warn", "原文來源佐證", "AI 未回傳 source_evidence。若剛更新 v7，請確認 Cloudflare Worker 也已更新成 v7。固定資料檢核仍有效。" );
+  } else {
+    const srcNorm = normalizeForEvidence(sourceText);
+    const missingEvidence = [];
+    const invalidEvidence = [];
+    let validQuoteCount = 0;
+    qualityEvidenceSections(ai).forEach(([key, needed, label]) => {
+      if (!needed) return;
+      const quotes = Array.isArray(evidence[key]) ? evidence[key].map(planClean).filter(Boolean) : [];
+      const validQuotes = quotes.filter((q) => normalizeForEvidence(q).length >= 4 && srcNorm.includes(normalizeForEvidence(q)));
+      validQuoteCount += validQuotes.length;
+      if (!quotes.length) missingEvidence.push(label);
+      else if (!validQuotes.length) invalidEvidence.push(label);
+    });
+    if (!missingEvidence.length && !invalidEvidence.length) {
+      push("pass", "原文來源佐證", `AI 回傳的來源片段可在照專原文中找到，共核對 ${validQuoteCount} 段。仍建議人工確認重要疾病、家庭與經濟敘述。`);
+    } else {
+      const dts = [];
+      if (missingEvidence.length) dts.push(`無佐證片段：${missingEvidence.join("、")}`);
+      if (invalidEvidence.length) dts.push(`回傳片段無法在原文直接找到：${invalidEvidence.join("、")}`);
+      push("warn", "原文來源佐證", dts.join("\n"));
+    }
+  }
+
+  return checks;
+}
+
+function renderQualityChecks(checks) {
+  const list = $("#qualityList");
+  const summary = $("#qualitySummary");
+  const overall = $("#qualityOverall");
+  const counts = { pass: 0, warn: 0, error: 0 };
+  checks.forEach((x) => counts[x.status] = (counts[x.status] || 0) + 1);
+
+  summary.innerHTML = `
+    <div class="quality-summary-box"><span>通過</span><strong>${counts.pass}</strong></div>
+    <div class="quality-summary-box"><span>需確認</span><strong>${counts.warn}</strong></div>
+    <div class="quality-summary-box"><span>異常</span><strong>${counts.error}</strong></div>`;
+
+  list.innerHTML = checks.map((x) => {
+    const icon = x.status === "pass" ? "✓" : x.status === "warn" ? "!" : "×";
+    return `<div class="quality-item ${x.status}"><div class="quality-icon">${icon}</div><div><div class="quality-item-title">${escapeHtml(x.title)}</div><div class="quality-item-detail">${escapeHtml(x.detail || "")}</div></div></div>`;
+  }).join("");
+
+  overall.className = "quality-overall " + (counts.error ? "error" : counts.warn ? "warn" : "pass");
+  overall.textContent = counts.error ? `${counts.error} 項異常` : counts.warn ? `${counts.warn} 項需確認` : "固定資料檢核通過";
+}
+
+function performQualityCheck() {
+  if (!lastQualityContext) return;
+  const output = $("#outputText").value;
+  const checks = runQualityChecks(lastQualityContext.ai, lastQualityContext.data, output, lastQualityContext.sourceText);
+  renderQualityChecks(checks);
+}
+
+function recheckQuality() {
+  if (!lastQualityContext) return;
+  performQualityCheck();
+  showToast("已重新檢核目前產出內容");
+}
+
+function markQualityStale() {
+  if (!lastQualityContext || $("#outputSection").classList.contains("hidden")) return;
+  const overall = $("#qualityOverall");
+  overall.className = "quality-overall stale";
+  overall.textContent = "內容已修改，請重新檢核";
+}
+
 function demoAI(src, d) {
   const dates = [...src.matchAll(/(\d{2,3})[年\/.](\d{1,2})[月\/.](\d{1,2})/g)]
     .map((m) => `${m[1]}/${m[2].padStart(2, "0")}/${m[3].padStart(2, "0")}`);
@@ -894,6 +1111,16 @@ function demoAI(src, d) {
       code: s.code,
       execution_note: "【示範】正式版將依照專內容補入實際協助內容與目的。",
     })),
+    source_evidence: {
+      visit: [src.slice(0, 24)],
+      care_analysis: [src.slice(0, 24)],
+      economic_analysis: [],
+      environment_analysis: [],
+      social_analysis: [],
+      strengths_analysis: [],
+      problem_items: [src.slice(0, 24)],
+      service_execution: [src.slice(0, 24)],
+    },
   };
 }
 
@@ -966,7 +1193,14 @@ async function generate() {
       writing_mode: currentWritingMode(),
       intervention_change: currentIntervention(),
     });
-    $("#outputText").value = renderPlan(ai, d, currentIntervention());
+    const renderedPlan = renderPlan(ai, d, currentIntervention());
+    $("#outputText").value = renderedPlan;
+    lastQualityContext = {
+      ai,
+      data: d,
+      sourceText: $("#sourceText").value.trim(),
+    };
+    performQualityCheck();
     $("#outputStatus").textContent = CONFIG.DEMO_MODE
       ? "目前為示範模式：照顧問題分析為示意文字；服務與金額格式為正式邏輯。"
       : `AI 產生完成；目前為${currentWritingMode() === "compact" ? "精簡" : currentWritingMode() === "detailed" ? "詳細" : "標準"}撰寫模式。`;
@@ -1053,6 +1287,11 @@ function resetAll(confirmFirst = true) {
   $("#charCount").textContent = "0 字";
   $("#charCount").classList.remove("danger-badge");
   $("#outputSection").classList.add("hidden");
+  lastQualityContext = null;
+  $("#qualityOverall").className = "quality-overall pending";
+  $("#qualityOverall").textContent = "尚未檢核";
+  $("#qualitySummary").innerHTML = "";
+  $("#qualityList").innerHTML = "";
   clearGenerateError();
   renderAll();
   markClean();
