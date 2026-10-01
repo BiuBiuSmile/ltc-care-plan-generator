@@ -2,6 +2,9 @@ const CONFIG = window.CARE_PLAN_CONFIG || { DEMO_MODE: false, API_URL: "" };
 const $ = (s) => document.querySelector(s);
 const BETA_TOKEN_KEY = "carePlanBetaToken";
 const ADMIN_KEY_SESSION = "carePlanAdminKey";
+const PENDING_EMAIL_KEY = "carePlanPendingEmail";
+const PENDING_EXPIRES_KEY = "carePlanPendingExpiresAt";
+const OTP_TTL_MS = 10 * 60 * 1000;
 
 function apiBaseUrl() {
   return String(CONFIG.API_URL || "").replace(/\/care-plan-web\/?$/, "");
@@ -34,6 +37,30 @@ async function authFetch(path, payload = {}, includeToken = false) {
   }
   return data;
 }
+function clearPendingVerification() {
+  sessionStorage.removeItem(PENDING_EMAIL_KEY);
+  sessionStorage.removeItem(PENDING_EXPIRES_KEY);
+}
+function savePendingVerification(email) {
+  sessionStorage.setItem(PENDING_EMAIL_KEY, email);
+  sessionStorage.setItem(PENDING_EXPIRES_KEY, String(Date.now() + OTP_TTL_MS));
+}
+function restorePendingVerification() {
+  const email = String(sessionStorage.getItem(PENDING_EMAIL_KEY) || "").trim();
+  const expiresAt = Number(sessionStorage.getItem(PENDING_EXPIRES_KEY) || 0);
+  if (!email || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    clearPendingVerification();
+    return false;
+  }
+  const emailInput = $("#emailInput");
+  if (emailInput) emailInput.value = email;
+  const sent = $("#authSentMessage");
+  if (sent) sent.textContent = "驗證碼已寄出，請輸入信箱收到的 6 位數驗證碼。";
+  $("#authStepInvite")?.classList.add("hidden");
+  $("#authStepOtp")?.classList.remove("hidden");
+  setTimeout(() => $("#verificationCodeInput")?.focus(), 0);
+  return true;
+}
 function goToPlanner() {
   window.location.replace("app.html");
 }
@@ -46,6 +73,7 @@ async function sendVerificationCode() {
   btn.textContent = "寄送中…";
   try {
     const data = await authFetch("request-code", { email });
+    savePendingVerification(email);
     $("#authSentMessage").textContent = data.message || "驗證碼已寄出。";
     $("#authStepInvite").classList.add("hidden");
     $("#authStepOtp").classList.remove("hidden");
@@ -73,6 +101,7 @@ async function verifyBetaLogin() {
     const token = data.token || "";
     if (!token) throw new Error("驗證成功，但未取得登入憑證。請重新登入。");
     localStorage.setItem(BETA_TOKEN_KEY, token);
+    clearPendingVerification();
     goToPlanner();
   } catch (e) {
     setAuthError(e.message);
@@ -92,12 +121,16 @@ function initAuth() {
     goToPlanner();
     return;
   }
+  restorePendingVerification();
   $("#sendVerifyCodeBtn")?.addEventListener("click", sendVerificationCode);
   $("#verifyLoginBtn")?.addEventListener("click", verifyBetaLogin);
   $("#authBackBtn")?.addEventListener("click", () => {
     setAuthError("");
+    clearPendingVerification();
+    $("#verificationCodeInput").value = "";
     $("#authStepOtp").classList.add("hidden");
     $("#authStepInvite").classList.remove("hidden");
+    $("#emailInput")?.focus();
   });
   $("#verificationCodeInput")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") verifyBetaLogin();
