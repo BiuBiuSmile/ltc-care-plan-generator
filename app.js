@@ -246,12 +246,10 @@ function updateBetaSession(data) {
 }
 function showAppAfterAuth(data) {
   updateBetaSession(data);
-  $("#authGate")?.classList.add("hidden");
   $("#appRoot")?.classList.remove("hidden");
 }
 function showAuthGate() {
-  $("#appRoot")?.classList.add("hidden");
-  $("#authGate")?.classList.remove("hidden");
+  window.location.replace("index.html");
 }
 async function authFetch(path, payload = {}, includeToken = false) {
   const headers = { "Content-Type": "application/json", "Accept": "application/json" };
@@ -357,12 +355,11 @@ async function logoutBeta() {
   } else {
     try { if (betaToken) await authFetch("logout", {}, true); } catch {}
   }
-  betaToken = ""; betaUser = null; betaQuota = { max: 10, used: 0, remaining: 10 };
+  betaToken = "";
+  betaUser = null;
+  betaQuota = { max: 10, used: 0, remaining: 10 };
   localStorage.removeItem(BETA_TOKEN_KEY);
-  $("#verificationCodeInput").value = "";
-  $("#authStepOtp").classList.add("hidden");
-  $("#authStepInvite").classList.remove("hidden");
-  showAuthGate();
+  window.location.replace("index.html");
 }
 
 

@@ -1,21 +1,21 @@
 <!DOCTYPE html>
-
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8"/>
-<meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
-<meta content="#648da7" name="theme-color"/>
-<meta content="個管照顧計畫產生器 v9.2 管理者直通版：Email 驗證、自動取得測試資格、每人 10 次 AI。" name="description"/>
-<title>個管照顧計畫產生器｜v9.2 管理者直通版</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="robots" content="noindex,nofollow"/>
+<meta name="theme-color" content="#648da7"/>
+<meta name="description" content="個管照顧計畫產生器封閉測試：Email 驗證登入。"/>
+<title>個管照顧計畫產生器｜Email 驗證</title>
 <link href="icon.png" rel="icon" type="image/png"/>
-<link href="styles.css?v=9.2" rel="stylesheet"/>
+<link href="styles.css?v=9.4" rel="stylesheet"/>
 </head>
 <body>
 <div class="auth-shell" id="authGate">
   <section class="auth-card">
     <div class="auth-mark">CLOSED BETA</div>
     <h1>個管照顧計畫產生器</h1>
-    <p class="auth-subtitle">目前為小規模測試。輸入 Email 取得驗證碼，完成驗證後會自動取得測試資格。</p>
+    <p class="auth-subtitle">目前為小規模測試。輸入 Email 取得驗證碼，完成驗證後會自動取得測試資格，並進入計畫撰寫頁。</p>
     <div class="auth-info"><strong>測試名額</strong><span>限前 10 位完成 Email 驗證者，每位共 10 次 AI 呼叫；完整產生與局部重寫各計 1 次。</span></div>
     <div id="authStepInvite">
       <label class="auth-field"><span class="field-label">Email</span><input class="input-control" id="emailInput" type="email" autocomplete="email" placeholder="name@example.com"/></label>
@@ -24,220 +24,16 @@
     <div class="hidden" id="authStepOtp">
       <div class="auth-sent" id="authSentMessage">驗證碼已寄出。</div>
       <label><span class="field-label">6 位數 Email 驗證碼</span><input class="input-control otp-input" id="verificationCodeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000"/></label>
-      <button class="primary-button auth-primary" id="verifyLoginBtn" type="button">完成驗證並進入</button>
+      <button class="primary-button auth-primary" id="verifyLoginBtn" type="button">完成驗證並進入計畫系統</button>
       <button class="text-button auth-back" id="authBackBtn" type="button">返回修改 Email</button>
     </div>
     <div class="auth-error hidden" id="authError"></div>
     <p class="auth-footnote">驗證碼 10 分鐘內有效。新 Email 僅在尚有名額時可加入；已加入的測試者之後仍可重新登入。個案照專內容不會寫入測試帳號資料庫。</p>
   </section>
 </div>
-<div class="app-shell hidden" id="appRoot">
-<header class="topbar">
-<div>
-<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v9.2 管理者直通</span>
-<h1>個管照顧計畫產生器</h1>
-<p class="subtitle">先選好服務，再貼上照專計畫簡述；系統會先做服務資料防呆，AI 完成後可局部重寫、直接編輯，並保留 AI 原稿供復原與重新檢核。</p>
-</div>
-<div class="top-actions">
-<div class="tester-status" id="testerStatus"><span id="testerEmail">測試帳號</span><strong id="quotaText">剩餘 10 / 10 次</strong></div>
-<button class="ghost-button" id="logoutBtn" type="button">登出</button>
-<button class="ghost-button" id="sampleBtn" type="button">載入範例</button>
-<button class="ghost-button" id="resetBtn" type="button">清空</button>
-</div>
-</header>
-<main>
-<div class="mode-banner demo" id="modeBanner">
-<strong>網頁測試版</strong><span>不連線照管平台。AI 尚未啟用時，會使用示範資料呈現最終格式。</span>
-</div><div class="desktop-layout"><div class="workflow-column"><section class="card" id="step1">
-<div class="section-heading"><div><p class="step">STEP 1</p><h2>基本核定資料</h2></div></div>
-<div class="two-col">
-<label><span class="field-label">身分別</span>
-<select class="input-control" id="identitySelect">
-<option value="第三類（一般戶）">第三類（一般戶）</option>
-<option value="第二類（中低收入戶）">第二類（中低收入戶）</option>
-<option value="第一類（長照低收入戶）">第一類（長照低收入戶）</option>
-</select>
-</label>
-<label><span class="field-label">失能等級 CMS</span>
-<select class="input-control" id="cmsSelect"></select>
-</label>
-</div>
-<label class="inline-check foreign-row">
-<input id="foreignEnabled" type="checkbox"/>
-<span>聘用外籍看護，僅能使用30%額度</span>
-<input class="inline-number" id="foreignAmount" min="0" placeholder="額度" type="number"/>
-<span>元/月</span>
-</label>
-<div class="summary-grid">
-<div class="summary-box"><span>核定額度</span><strong id="budgetAmount">0</strong><small>元 / 月</small></div>
-<div class="summary-box"><span>部分負擔</span><strong id="copayRate">16%</strong><small id="identityLabel">一般戶</small></div>
-</div>
-</section><div class="desktop-grid desktop-grid-services"><section class="card" id="step2">
-<div class="section-heading"><div><p class="step">STEP 2</p><h2>選擇服務項目</h2></div><span class="count-badge" id="selectedCount">0 項</span></div>
-<label class="field-label" for="serviceSearch">搜尋服務代碼或名稱</label>
-<input class="input-control" id="serviceSearch" placeholder="例如：BA02、沐浴、陪伴、CA07" type="search"/>
-<div class="quick-filter">
-<button class="filter-chip active" data-filter="all" type="button">全部</button>
-<button class="filter-chip" data-filter="care" type="button">照顧服務</button>
-<button class="filter-chip" data-filter="professional" type="button">專業服務</button>
-<button class="filter-chip" data-filter="daycare" type="button">日照／社區</button>
-</div>
-<div class="service-list" id="serviceList"></div>
-</section><section class="card" id="step3">
-<div class="section-heading"><div><p class="step">STEP 3</p><h2>已選服務與額度</h2></div><button class="text-button" id="clearServicesBtn" type="button">清除服務</button></div>
-<div class="approved-list empty-state" id="approvedList">尚未加入服務項目</div>
-<section class="result-panel">
-<div class="result-row"><span>預估每月服務總額</span><strong><span id="serviceTotal">0</span> 元</strong></div>
-<div class="result-row"><span>預估部分負擔</span><strong><span id="copayTotal">0</span> 元</strong></div>
-<div class="result-row"><span>額度使用率</span><strong id="budgetUsage">0%</strong></div>
-<div class="result-divider"></div>
-<div class="result-row large"><span>剩餘額度</span><strong id="remainingAmount">0 元</strong></div>
-<div class="progress-track"><div class="progress-bar" id="budgetProgress" style="width:0%"></div></div>
-<p class="budget-hint" id="budgetHint">目前尚未使用核定額度。</p>
-</section>
-</section></div><div class="desktop-grid desktop-grid-settings"><section class="card" id="step4">
-<div class="section-heading"><div><p class="step">STEP 4</p><h2>其他服務</h2></div></div>
-<div class="option-card">
-<label class="inline-check"><input id="transportEnabled" type="checkbox"/><strong>交通接送</strong></label>
-<div class="two-col option-fields">
-<input class="input-control" id="transportUnit" placeholder="照會單位（選填）"/>
-<input class="input-control" id="transportPhone" placeholder="電話（選填）"/>
-</div>
-</div>
-<div class="option-card">
-<label class="inline-check"><input id="aidEnabled" type="checkbox"/><strong>輔具／居家無障礙環境改善</strong></label>
-<div class="three-col option-fields">
-<input class="input-control" id="aidPeriod" placeholder="起訖日（選填）"/>
-<input class="input-control" id="aidQuota" min="0" placeholder="3年額度（元）" type="number"/>
-<input class="input-control" id="aidUsedTotal" min="0" placeholder="已核銷總金額（選填）" type="number"/>
-</div>
-<div class="dynamic-list" id="aidItems"></div>
-<button class="secondary-button small" id="addAidBtn" type="button">＋ 新增輔具項目</button>
-</div>
-<div class="option-card">
-<div class="inline-check"><input id="respiteEnabled" type="checkbox"/><strong>喘息服務</strong></div>
-<div class="respite-list" id="respiteList"></div>
-</div>
-<div class="option-card">
-<label class="inline-check"><input id="mealEnabled" type="checkbox"/><strong>餐飲服務</strong></label>
-<div class="two-col option-fields">
-<input class="input-control" id="mealCount" min="0" placeholder="餐／月，例如 62" type="number"/>
-<input class="input-control" id="mealUnit" placeholder="送餐單位（選填）"/>
-</div>
-<p class="format-preview">產出格式：<code>OT01[營養餐飲](10801)*62單位/月</code></p>
-</div>
-<label><span class="field-label">特殊服務／其他核定事項（選填）</span>
-<textarea class="input-control compact-textarea" id="specialPlanItems" placeholder="例如：AA09例假日服務需求、短照特殊說明、其他需獨立列示的核定事項。沒有可留空。"></textarea>
-</label>
-<label><span class="field-label">其他資源運用</span><input class="input-control" id="otherResource" placeholder="沒有可留空，產出為「無」"/></label>
-</section><div class="desktop-stack"><section class="card" id="step5">
-<div class="section-heading"><div><p class="step">STEP 5</p><h2>服務單位選擇 <span class="required-badge">必填</span></h2></div></div>
-<p class="helper">一定要選擇其中一種，並填寫對應單位名稱，否則不能產出。</p>
-<label class="unit-option"><input name="unitMode" type="radio" value="designated"/><div><strong>指定單位</strong><span>案家已有指定服務單位</span></div></label>
-<input class="input-control nested-input" disabled="" id="designatedUnit" placeholder="請輸入指定單位名稱"/>
-<label class="unit-option"><input name="unitMode" type="radio" value="rotation"/><div><strong>不指定服務單位</strong><span>依輪派原則進行照會</span></div></label>
-<input class="input-control nested-input" disabled="" id="rotationUnit" placeholder="請輸入輪派單位名稱"/>
-</section><section class="card" id="step6">
-<div class="section-heading"><div><p class="step">STEP 6</p><h2>撰寫方式與服務介入後改變</h2></div></div>
-<label><span class="field-label">計畫撰寫模式</span>
-<select class="input-control" id="writingModeSelect">
-<option value="standard" selected>標準｜依資料量整理，保留主要細節</option>
-<option value="compact">精簡｜句子短、重點式</option>
-<option value="detailed">詳細｜保留較完整病史、功能與家庭脈絡</option>
-</select>
-</label>
-<p class="helper mode-helper">不影響服務碼、單位數、金額與照會單位；只調整文字段落的長度與細節。</p>
-<label class="spaced-field"><span class="field-label">服務介入後改變</span>
-<select class="input-control" id="interventionSelect">
-<option value="尚未使用">尚未使用</option>
-<option value="初評">初評</option>
-<option value="待服務介入後填寫">待服務介入後填寫</option>
-<option value="穩定持續使用服務">穩定持續使用服務</option>
-<option value="自訂">自訂</option>
-</select>
-</label>
-<input class="input-control hidden" id="interventionCustom" placeholder="請輸入服務介入後改變，例如：服務介入後減輕案家照顧負荷。"/>
-</section></div></div><section class="card" id="step7">
-<div class="section-heading"><div><p class="step">STEP 7</p><h2>貼上照專計畫簡述</h2></div><span class="count-badge" id="charCount">0 字</span></div>
-<p class="helper">直接從照管複製後貼上即可；本網頁本身不登入、不控制照管平台。</p>
-<textarea class="source-textarea" id="sourceText" placeholder="請貼上完整照專計畫簡述……"></textarea>
-</section><section class="generate-card" id="step8">
-<div><p class="step">STEP 8</p><h2>產生個管照顧計畫</h2><p id="generateHint">固定資料由網頁控制；AI 依撰寫模式整理照顧問題分析、問題清單與服務執行目的。每次完整產生會使用 1 次測試額度。</p></div>
-<button class="primary-button" id="generateBtn" type="button">AI 產生個管計畫（使用 1 次）</button>
-</section><section aria-live="polite" class="error-panel hidden" id="generateError">
-<div>
-<strong>產生失敗</strong>
-<p id="generateErrorMessage"></p>
-<code id="generateErrorDetail"></code>
-</div>
-<button class="secondary-button" id="errorRetryBtn" type="button">重新產生</button>
-</section><section class="card output-card hidden" id="outputSection">
-<div class="section-heading"><div><p class="step">完成</p><h2>個管照顧計畫</h2></div><div class="output-actions"><button class="secondary-button" id="retryBtn" type="button">重新產生</button><button class="secondary-button" id="restoreDraftBtn" type="button" disabled>復原 AI 原稿</button><button class="secondary-button" id="copyBtn" type="button">複製結果</button></div></div>
-<div class="output-status-row"><div class="output-status" id="outputStatus"></div><span class="draft-state ai" id="draftState">AI 原稿</span></div>
-<section class="partial-rewrite-panel" id="partialRewritePanel">
-<div class="partial-rewrite-head"><div><p class="step">PARTIAL REWRITE</p><h3>局部 AI 重寫</h3><p class="helper">只重寫指定區塊；服務碼、月單位、金額、CMS 與照會單位仍由程式固定。若目前已有手動修改，執行前會先提醒。</p></div></div>
-<div class="partial-rewrite-actions">
-<button class="secondary-button small partial-rewrite-btn" data-section="care_analysis" type="button">照顧面</button>
-<button class="secondary-button small partial-rewrite-btn" data-section="economic_analysis" type="button">經濟面</button>
-<button class="secondary-button small partial-rewrite-btn" data-section="environment_analysis" type="button">環境面</button>
-<button class="secondary-button small partial-rewrite-btn" data-section="social_analysis" type="button">社交面</button>
-<button class="secondary-button small partial-rewrite-btn" data-section="strengths_analysis" type="button">家庭優勢</button>
-<button class="secondary-button small partial-rewrite-btn" data-section="problem_items" type="button">照顧問題清單</button>
-<button class="secondary-button small partial-rewrite-btn" data-section="service_execution" type="button">服務執行說明</button>
-</div>
-</section>
-<section class="quality-panel" id="qualityPanel">
-<div class="quality-head">
-<div>
-<p class="step">QUALITY CHECK</p>
-<h3>自動品質檢核</h3>
-<p class="helper">核對固定資料、AI 服務碼與原文佐證。來源佐證代表有可回查片段，不等於每一句都已完全人工確認。</p>
-</div>
-<div class="quality-head-actions">
-<span class="quality-overall pending" id="qualityOverall">尚未檢核</span>
-<button class="secondary-button small" id="qualityRecheckBtn" type="button">重新檢核</button>
-</div>
-</div>
-<div class="quality-summary" id="qualitySummary"></div>
-<div class="quality-list" id="qualityList"></div>
-</section>
-<label class="output-edit-label" for="outputText">產出結果可直接修改；手動修改後會保留 AI 原稿，可隨時復原。修改後請按「重新檢核」。</label>
-<textarea class="output-textarea" id="outputText"></textarea>
-</section><p class="footer-note">GitHub Pages 只負責畫面與資料整理；AI 透過 Cloudflare Worker 呼叫，OpenAI API Key 不會放在前端；服務碼、單位數與金額仍由網頁固定。</p></div><aside aria-label="桌面版快速導覽" class="desktop-sidebar"><nav aria-label="填寫步驟" class="sidebar-card desktop-step-nav"><h3>填寫進度</h3><p class="sidebar-note">桌面版可直接由右側快速跳到各區塊。</p><a class="sidebar-step" href="#step1"><span class="sidebar-step-no">1</span><span>基本核定資料</span></a><a class="sidebar-step" href="#step2"><span class="sidebar-step-no">2</span><span>選擇服務項目</span></a><a class="sidebar-step" href="#step3"><span class="sidebar-step-no">3</span><span>已選服務與額度</span></a><a class="sidebar-step" href="#step4"><span class="sidebar-step-no">4</span><span>其他服務</span></a><a class="sidebar-step" href="#step5"><span class="sidebar-step-no">5</span><span>服務單位選擇</span></a><a class="sidebar-step" href="#step6"><span class="sidebar-step-no">6</span><span>撰寫模式／介入改變</span></a><a class="sidebar-step" href="#step7"><span class="sidebar-step-no">7</span><span>貼上照專計畫</span></a><a class="sidebar-step" href="#step8"><span class="sidebar-step-no">8</span><span>產生個管計畫</span></a></nav><aside aria-label="已選服務快速摘要" class="sidebar-card floating-summary" id="floatingSummary">
-<div class="floating-summary-head"><strong>已選服務</strong><span id="floatingCount">0 項</span></div>
-<div class="floating-items" id="floatingItems">尚未加入服務</div>
-<div class="floating-total"><span>服務總額</span><strong id="floatingTotal">0 元</strong></div>
-<button class="secondary-button small" id="floatingGoBtn" type="button">查看已選服務</button>
-</aside></aside></div>
 
-
-
-
-
-
-
-
-
-
-
-</main>
-
-<div class="mobile-summary" id="mobileSummary">
-<div><strong id="mobileCount">0 項服務</strong><span id="mobileTotal">0 元</span></div>
-<button id="mobileGoBtn" type="button">查看</button>
-</div>
-</div>
-<div aria-busy="true" aria-live="assertive" class="loading-overlay hidden" id="loadingOverlay">
-<div class="loading-card">
-<div aria-hidden="true" class="spinner"></div>
-<h3>AI 正在整理個管照顧計畫</h3>
-<p id="loadingMessage">正在分析照專計畫簡述，請稍候…</p>
-<button class="ghost-button" id="cancelGenerateBtn" type="button">取消產生</button>
-</div>
-</div>
 <div aria-live="polite" class="toast hidden" id="toast" role="status"></div>
-<script src="data.js?v=9.2"></script>
-<script src="config.js?v=9.2"></script>
-<script src="app.js?v=9.2"></script>
+<script src="config.js?v=9.4"></script>
+<script src="auth.js?v=9.4"></script>
 </body>
 </html>
