@@ -28,6 +28,7 @@ let betaUser = null;
 let betaQuota = { max: 10, used: 0, remaining: 10 };
 let adminKey = sessionStorage.getItem(ADMIN_KEY_SESSION) || "";
 let adminMode = false;
+let quotaLogoutScheduled = false;
 
 const PARTIAL_SECTION_LABELS = {
   care_analysis: "照顧面",
@@ -251,6 +252,18 @@ function showAppAfterAuth(data) {
 function showAuthGate() {
   window.location.replace("index.html");
 }
+
+function scheduleQuotaExhaustedLogout() {
+  if (adminMode || quotaLogoutScheduled) return;
+  quotaLogoutScheduled = true;
+  betaToken = "";
+  localStorage.removeItem(BETA_TOKEN_KEY);
+  showToast("10 次 AI 額度已使用完畢，系統將自動登出。 ");
+  setTimeout(() => {
+    window.location.replace("index.html?quota=exhausted");
+  }, 1800);
+}
+
 async function authFetch(path, payload = {}, includeToken = false) {
   const headers = { "Content-Type": "application/json", "Accept": "application/json" };
   if (includeToken && betaToken) headers.Authorization = `Bearer ${betaToken}`;
@@ -1489,7 +1502,16 @@ async function callAI(payload) {
     if (data.admin_mode) { adminMode = true; renderQuota(); }
     else if (data.quota) updateBetaSession({ quota: data.quota });
 
+    if (data.force_logout === true && !adminMode) {
+      scheduleQuotaExhaustedLogout();
+    }
+
     if (!response.ok || data.ok === false) {
+      if (data.code === "AI_QUOTA_EXHAUSTED" && !adminMode) {
+        betaToken = "";
+        localStorage.removeItem(BETA_TOKEN_KEY);
+        window.location.replace("index.html?quota=exhausted");
+      }
       if (response.status === 401 || data.code === "SESSION_INVALID" || data.code === "SESSION_EXPIRED" || data.code === "AUTH_REQUIRED" || data.code === "ADMIN_UNAUTHORIZED") {
         if (adminMode) {
           adminMode = false;

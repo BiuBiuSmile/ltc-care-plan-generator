@@ -8,18 +8,18 @@
 <meta name="description" content="個管照顧計畫產生器封閉測試：Email 驗證登入。"/>
 <title>個管照顧計畫產生器｜Email 驗證</title>
 <link href="icon.png" rel="icon" type="image/png"/>
-<link href="styles.css?v=9.5" rel="stylesheet"/>
+<link href="styles.css?v=9.6" rel="stylesheet"/>
 </head>
 <body>
 <div class="auth-shell" id="authGate">
   <section class="auth-card">
     <div class="auth-mark">CLOSED BETA</div>
     <h1>個管照顧計畫產生器</h1>
-    <p class="auth-subtitle">目前為小規模測試。輸入 Email 取得驗證碼，完成驗證後會自動取得測試資格，並進入計畫撰寫頁。</p>
+    <p class="auth-subtitle">目前為小規模測試。第一次使用需完成 Email 驗證；之後只要輸入已驗證過的 Email，即可直接進入計畫撰寫頁。</p>
     <div class="auth-info"><strong>測試名額</strong><span>限前 10 位完成 Email 驗證者，每位共 10 次 AI 呼叫；完整產生與局部重寫各計 1 次。</span></div>
     <div id="authStepInvite">
       <label class="auth-field"><span class="field-label">Email</span><input class="input-control" id="emailInput" type="email" autocomplete="email" placeholder="name@example.com"/></label>
-      <button class="primary-button auth-primary" id="sendVerifyCodeBtn" type="button">取得 Email 驗證碼</button>
+      <button class="primary-button auth-primary" id="sendVerifyCodeBtn" type="button">Email 登入 / 首次驗證</button>
     </div>
     <div class="hidden" id="authStepOtp">
       <div class="auth-sent" id="authSentMessage">驗證碼已寄出。</div>
@@ -28,12 +28,12 @@
       <button class="text-button auth-back" id="authBackBtn" type="button">返回修改 Email</button>
     </div>
     <div class="auth-error hidden" id="authError"></div>
-    <p class="auth-footnote">驗證碼 10 分鐘內有效。新 Email 僅在尚有名額時可加入；已加入的測試者之後仍可重新登入。個案照專內容不會寫入測試帳號資料庫。</p>
+    <p class="auth-footnote">第一次驗證碼 10 分鐘內有效。已驗證過的 Email 之後可直接登入；10 次 AI 額度使用完畢後，帳號會自動登出並停止登入。個案照專內容不會寫入測試帳號資料庫。</p>
   </section>
 </div>
 
 <div aria-live="polite" class="toast hidden" id="toast" role="status"></div>
-<script src="config.js?v=9.5"></script>
-<script src="auth.js?v=9.5"></script>
+<script src="config.js?v=9.6"></script>
+<script src="auth.js?v=9.6"></script>
 </body>
 </html>

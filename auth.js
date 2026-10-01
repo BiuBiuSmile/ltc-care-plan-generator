@@ -73,16 +73,26 @@ async function sendVerificationCode() {
   btn.textContent = "寄送中…";
   try {
     const data = await authFetch("request-code", { email });
+
+    // 已完成過第一次 Email 驗證：之後只要輸入同一個 Email 即可直接登入。
+    if (data?.already_verified && data?.token) {
+      localStorage.setItem(BETA_TOKEN_KEY, data.token);
+      clearPendingVerification();
+      goToPlanner();
+      return;
+    }
+
     savePendingVerification(email);
     $("#authSentMessage").textContent = data.message || "驗證碼已寄出。";
     $("#authStepInvite").classList.add("hidden");
     $("#authStepOtp").classList.remove("hidden");
     $("#verificationCodeInput").focus();
   } catch (e) {
+    if (e.code === "AI_QUOTA_EXHAUSTED") clearPendingVerification();
     setAuthError(e.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = "取得 Email 驗證碼";
+    btn.textContent = "Email 登入 / 首次驗證";
   }
 }
 async function verifyBetaLogin() {
@@ -111,6 +121,13 @@ async function verifyBetaLogin() {
   }
 }
 function initAuth() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("quota") === "exhausted") {
+    localStorage.removeItem(BETA_TOKEN_KEY);
+    clearPendingVerification();
+    setAuthError("此測試帳號的 10 次 AI 額度已使用完畢，無法再登入。 ");
+  }
+
   // 管理者已從 admin.html 驗證時，直接進使用頁。
   if (sessionStorage.getItem(ADMIN_KEY_SESSION)) {
     goToPlanner();
