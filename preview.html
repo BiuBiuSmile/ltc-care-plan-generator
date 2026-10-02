@@ -7,14 +7,10 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#5f8fd6" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="核定工具" />
   <meta name="description" content="支援電腦與手機的長照服務項目核定單，可快速選擇身分別、失能等級與服務項目並計算核定額度。" />
   <title>服務項目核定工具</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="icon-180.png" />
   <link rel="stylesheet" href="styles.css?v=30" />
 </head>
 <body>
@@ -24,11 +20,7 @@
         <p class="eyebrow">居督行動工具</p>
         <h1>服務項目核定單工具</h1>
       </div>
-      <div class="topbar-actions">
-        <span id="offlineBadge" class="offline-badge" hidden>離線</span>
-        <button id="installPwaBtn" class="ghost-button pwa-install-button" type="button" hidden>安裝</button>
-        <button id="resetBtn" class="ghost-button" type="button">清空</button>
-      </div>
+      <button id="resetBtn" class="ghost-button" type="button">清空</button>
     </header>
 
     <main>
@@ -102,47 +94,16 @@
       </section>
 
       <div class="review-column">
-      <section id="step3Section" class="card selected-budget-card" aria-labelledby="approved-title">
+      <section id="step3Section" class="card" aria-labelledby="approved-title">
         <div class="section-heading step3-heading">
           <div>
             <p class="step">STEP 3</p>
-            <h2 id="approved-title">已選服務與額度</h2>
+            <h2 id="approved-title">本月核定項目</h2>
           </div>
-          <div class="step3-actions">
-            <span id="approvedCount" class="count-badge compact-badge">0 項</span>
-            <button id="clearItemsBtn" class="text-button" type="button">清除服務</button>
-          </div>
+          <button id="clearItemsBtn" class="text-button" type="button">清除項目</button>
         </div>
 
-        <div id="approvedList" class="approved-list empty-state">
-          尚未加入服務項目
-        </div>
-
-        <div id="resultPanel" class="result-panel embedded-result" aria-label="已選服務額度試算">
-          <div class="result-row">
-            <span>預估每月服務總額</span>
-            <strong><span id="serviceTotal">0</span> 元</strong>
-          </div>
-          <div class="result-row">
-            <span>預估部分負擔</span>
-            <strong><span id="copayTotal">0</span> 元</strong>
-          </div>
-          <div class="result-row usage-row">
-            <span>額度使用率</span>
-            <strong id="budgetUsage" class="usage-rate">0%</strong>
-          </div>
-          <div class="result-divider"></div>
-          <div class="result-row large">
-            <span>剩餘額度</span>
-            <strong id="remainingAmount">10,020 元</strong>
-          </div>
-          <div class="progress-track" aria-hidden="true">
-            <div id="budgetProgress" class="progress-bar" style="width: 0%"></div>
-          </div>
-          <p id="budgetHint" class="budget-hint">目前尚未使用核定額度。</p>
-        </div>
-
-        <button id="overviewBtn" class="overview-button overview-button-bottom" type="button">
+        <button id="overviewBtn" class="overview-button" type="button">
           <span class="overview-button-icon" aria-hidden="true">▦</span>
           <span>
             <strong>產出服務項目總覽</strong>
@@ -150,7 +111,37 @@
           </span>
           <span class="overview-button-arrow" aria-hidden="true">›</span>
         </button>
+
+        <div id="approvedList" class="approved-list empty-state">
+          尚未加入服務項目
+        </div>
       </section>
+
+      <section id="resultPanel" class="result-panel" aria-label="核定計算結果，點一下可跳到 Step 3" role="button" tabindex="0">
+        <div class="result-row">
+          <span>預估每月服務總額</span>
+          <strong><span id="serviceTotal">0</span> 元</strong>
+        </div>
+        <div class="result-row">
+          <span>預估部分負擔</span>
+          <strong><span id="copayTotal">0</span> 元</strong>
+        </div>
+        <div class="result-row usage-row">
+          <span>額度使用率</span>
+          <strong id="budgetUsage" class="usage-rate">0%</strong>
+        </div>
+        <div class="result-divider"></div>
+        <div class="result-row large">
+          <span>剩餘額度</span>
+          <strong id="remainingAmount">10,020 元</strong>
+        </div>
+        <div class="progress-track" aria-hidden="true">
+          <div id="budgetProgress" class="progress-bar" style="width: 0%"></div>
+        </div>
+        <p id="budgetHint" class="budget-hint">目前尚未使用核定額度。</p>
+        <p class="result-panel-tip">點一下此區可快速查看 Step 3 本月核定項目</p>
+      </section>
+
       </div>
 
       <p class="footer-note">
@@ -173,10 +164,6 @@
     </article>
   </template>
 
-
   <script src="app.js?v=30"></script>
-  <!-- Cloudflare Web Analytics -->
-  <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"66dc80d1faf64b179facf4d5237745fb"}'></script>
-  <!-- End Cloudflare Web Analytics -->
 </body>
 </html>
