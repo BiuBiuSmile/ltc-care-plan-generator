@@ -1,182 +1,39 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#5f8fd6" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="核定工具" />
-  <meta name="description" content="支援電腦與手機的長照服務項目核定單，可快速選擇身分別、失能等級與服務項目並計算核定額度。" />
-  <title>服務項目核定工具</title>
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="icon-180.png" />
-  <link rel="stylesheet" href="styles.css?v=30" />
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="robots" content="noindex,nofollow"/>
+<meta name="theme-color" content="#648da7"/>
+<meta name="description" content="個管照顧計畫產生器封閉測試：Email 驗證登入。"/>
+<title>個管照顧計畫產生器｜Email 驗證</title>
+<link href="icon.png" rel="icon" type="image/png"/>
+<link href="styles.css?v=9.6" rel="stylesheet"/>
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">居督行動工具</p>
-        <h1>服務項目核定單工具</h1>
-      </div>
-      <div class="topbar-actions">
-        <span id="offlineBadge" class="offline-badge" hidden>離線</span>
-        <button id="installPwaBtn" class="ghost-button pwa-install-button" type="button" hidden>安裝</button>
-        <button id="resetBtn" class="ghost-button" type="button">清空</button>
-      </div>
-    </header>
+<div class="auth-shell" id="authGate">
+  <section class="auth-card">
+    <div class="auth-mark">CLOSED BETA</div>
+    <h1>個管照顧計畫產生器</h1>
+    <p class="auth-subtitle">目前為小規模測試。第一次使用需完成 Email 驗證；之後只要輸入已驗證過的 Email，即可直接進入計畫撰寫頁。</p>
+    <div class="auth-info"><strong>測試名額</strong><span>限前 10 位完成 Email 驗證者，每位共 10 次 AI 呼叫；完整產生與局部重寫各計 1 次。</span></div>
+    <div id="authStepInvite">
+      <label class="auth-field"><span class="field-label">Email</span><input class="input-control" id="emailInput" type="email" autocomplete="email" placeholder="name@example.com"/></label>
+      <button class="primary-button auth-primary" id="sendVerifyCodeBtn" type="button">Email 登入 / 首次驗證</button>
+    </div>
+    <div class="hidden" id="authStepOtp">
+      <div class="auth-sent" id="authSentMessage">驗證碼已寄出。</div>
+      <label><span class="field-label">6 位數 Email 驗證碼</span><input class="input-control otp-input" id="verificationCodeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000"/></label>
+      <button class="primary-button auth-primary" id="verifyLoginBtn" type="button">完成驗證並進入計畫系統</button>
+      <button class="text-button auth-back" id="authBackBtn" type="button">返回修改 Email</button>
+    </div>
+    <div class="auth-error hidden" id="authError"></div>
+    <p class="auth-footnote">第一次驗證碼 10 分鐘內有效。已驗證過的 Email 之後可直接登入；10 次 AI 額度使用完畢後，帳號會自動登出並停止登入。個案照專內容不會寫入測試帳號資料庫。</p>
+  </section>
+</div>
 
-    <main>
-      <section class="card hero-card" aria-labelledby="basic-title">
-        <div class="section-heading">
-          <div>
-            <p class="step">STEP 1</p>
-            <h2 id="basic-title">基本核定資料</h2>
-          </div>
-
-        </div>
-
-        <div class="basic-fields">
-        <div class="basic-field">
-        <label class="field-label" for="identitySelect">身分別</label>
-        <select id="identitySelect" class="input-control">
-          <option value="general">第三類（一般戶）</option>
-          <option value="middleLow">第二類（中低收入戶）</option>
-          <option value="low">第一類（長照低收入戶）</option>
-        </select>
-
-        </div>
-        <div class="basic-field">
-        <label class="field-label" for="levelSelect">失能等級</label>
-        <select id="levelSelect" class="input-control">
-          <option value="2">第2級｜10,020 元</option>
-          <option value="3">第3級｜15,460 元</option>
-          <option value="4">第4級｜18,580 元</option>
-          <option value="5">第5級｜24,100 元</option>
-          <option value="6">第6級｜28,070 元</option>
-          <option value="7">第7級｜32,090 元</option>
-          <option value="8">第8級｜36,180 元</option>
-        </select>
-
-        </div>
-        <div class="summary-grid" aria-live="polite">
-          <div class="summary-box">
-            <span>每月核定額度</span>
-            <strong id="budgetAmount">10,020</strong>
-            <small>元 / 月</small>
-          </div>
-          <div class="summary-box">
-            <span>部分負擔</span>
-            <strong id="copayRate">16%</strong>
-            <small id="copayLabel">一般戶</small>
-          </div>
-        </div>
-        </div>
-      </section>
-
-      <section class="card service-section" aria-labelledby="service-title">
-        <div class="section-heading">
-          <div>
-            <p class="step">STEP 2</p>
-            <h2 id="service-title">加入核定服務</h2>
-          </div>
-          <span id="selectedCount" class="count-badge">0 項</span>
-        </div>
-
-        <label class="field-label" for="serviceSearch">搜尋服務代碼或名稱</label>
-        <input id="serviceSearch" class="input-control" type="search" placeholder="例如：BA02、備餐、陪伴" autocomplete="off" />
-
-        <div class="quick-filter" role="group" aria-label="服務類別篩選">
-          <button type="button" class="filter-chip active" data-filter="all">全部</button>
-          <button type="button" class="filter-chip" data-filter="care">照顧服務</button>
-          <button type="button" class="filter-chip" data-filter="professional">專業服務</button>
-          <button type="button" class="filter-chip" data-filter="daycare">日照／社區</button>
-        </div>
-
-        <div id="serviceList" class="service-list" aria-live="polite"></div>
-      </section>
-
-      <div class="review-column">
-      <section id="step3Section" class="card selected-budget-card" aria-labelledby="approved-title">
-        <div class="section-heading step3-heading">
-          <div>
-            <p class="step">STEP 3</p>
-            <h2 id="approved-title">已選服務與額度</h2>
-          </div>
-          <div class="step3-actions">
-            <span id="approvedCount" class="count-badge compact-badge">0 項</span>
-            <button id="clearItemsBtn" class="text-button" type="button">清除服務</button>
-          </div>
-        </div>
-
-        <div id="approvedList" class="approved-list empty-state">
-          尚未加入服務項目
-        </div>
-
-        <div id="resultPanel" class="result-panel embedded-result" aria-label="已選服務額度試算">
-          <div class="result-row">
-            <span>預估每月服務總額</span>
-            <strong><span id="serviceTotal">0</span> 元</strong>
-          </div>
-          <div class="result-row">
-            <span>預估部分負擔</span>
-            <strong><span id="copayTotal">0</span> 元</strong>
-          </div>
-          <div class="result-row usage-row">
-            <span>額度使用率</span>
-            <strong id="budgetUsage" class="usage-rate">0%</strong>
-          </div>
-          <div class="result-divider"></div>
-          <div class="result-row large">
-            <span>剩餘額度</span>
-            <strong id="remainingAmount">10,020 元</strong>
-          </div>
-          <div class="progress-track" aria-hidden="true">
-            <div id="budgetProgress" class="progress-bar" style="width: 0%"></div>
-          </div>
-          <p id="budgetHint" class="budget-hint">目前尚未使用核定額度。</p>
-        </div>
-
-        <button id="overviewBtn" class="overview-button overview-button-bottom" type="button">
-          <span class="overview-button-icon" aria-hidden="true">▦</span>
-          <span>
-            <strong>產出服務項目總覽</strong>
-            <small>另開新分頁查看每週與單次服務</small>
-          </span>
-          <span class="overview-button-arrow" aria-hidden="true">›</span>
-        </button>
-      </section>
-      </div>
-
-      <p class="footer-note">
-        本工具為行動查詢與試算用途；資料僅在目前頁面暫存，不會保留上一筆操作，也不會上傳個案資料。
-      </p>
-    </main>
-    <div class="creator-signature" aria-label="作者 BiuBiuSmile">by BiuBiuSmile</div>
-  </div>
-
-  <template id="serviceCardTemplate">
-    <article class="service-card">
-      <button class="service-main" type="button">
-        <div class="service-code"></div>
-        <div class="service-copy">
-          <h3 class="service-name"></h3>
-          <p class="service-price"></p>
-        </div>
-        <span class="add-mark">＋</span>
-      </button>
-    </article>
-  </template>
-
-
-  <script src="app.js?v=30"></script>
-  <!-- Cloudflare Web Analytics -->
-  <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"66dc80d1faf64b179facf4d5237745fb"}'></script>
-  <!-- End Cloudflare Web Analytics -->
+<div aria-live="polite" class="toast hidden" id="toast" role="status"></div>
+<script src="config.js?v=9.7"></script>
+<script src="auth.js?v=9.7"></script>
 </body>
 </html>
