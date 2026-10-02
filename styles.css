@@ -124,3 +124,10 @@
 .tester-status{display:flex;flex-direction:column;align-items:flex-end;gap:2px;padding:7px 12px;border:1px solid #cadee8;border-radius:12px;background:#f8fbfc;min-width:168px}.tester-status span{font-size:12px;color:#67808f;max-width:220px;overflow:hidden;text-overflow:ellipsis}.tester-status strong{font-size:14px;color:#2a607d}
 .quota-low{color:#aa5a20!important}.quota-empty{color:#b23b36!important}
 @media(max-width:720px){.auth-shell{padding:18px}.auth-card{padding:24px 20px;border-radius:18px}.tester-status{display:none}}
+
+
+/* v9.7：每週固定＋本月單次／備用合併計算 */
+.editor-section-title{font-size:12px;font-weight:900;letter-spacing:.08em;color:var(--accent-dark);margin-bottom:8px}.editor-divider{height:1px;background:#e5eef1;margin:12px 0}.single-config-section{background:#f7fafb;border-radius:12px;padding:10px}.single-row{align-items:end}.service-calc-summary{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;align-items:baseline;margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--accent-soft)}.service-calc-summary span{font-size:12px;color:var(--muted);font-weight:800}.service-calc-summary strong{justify-self:end;font-size:18px;color:var(--accent-dark)}.service-calc-summary small{grid-column:1 / -1;color:var(--muted);text-align:right}.service-calc-help{margin-top:12px;font-size:12px}.approved-qty-field{display:grid;gap:4px;justify-items:end;font-size:12px;color:var(--muted)}.approved-qty-field span{font-weight:800}.approved-qty-field small{white-space:nowrap}.approved-qty-field .qty-input{width:110px}.input-control:invalid{box-shadow:none}
+@media(max-width:720px){.approved-item{grid-template-columns:1fr}.approved-qty-field{justify-items:stretch}.approved-qty-field .qty-input{width:100%}.service-calc-summary strong{justify-self:end}}
+
+.cancel-note{margin:8px 0 0;color:var(--muted);font-size:12px;max-width:420px;line-height:1.55}

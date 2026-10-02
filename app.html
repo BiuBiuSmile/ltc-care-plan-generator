@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="robots" content="noindex,nofollow"/>
 <meta name="theme-color" content="#648da7"/>
-<meta name="description" content="個管照顧計畫產生器 v9.5：封閉測試使用頁。"/>
+<meta name="description" content="個管照顧計畫產生器 v9.7：穩定性修正版，支援每週固定＋本月單次／備用合併計算。"/>
 <title>個管照顧計畫產生器｜使用頁</title>
 <link href="icon.png" rel="icon" type="image/png"/>
-<link href="styles.css?v=9.6" rel="stylesheet"/>
+<link href="styles.css?v=9.7" rel="stylesheet"/>
 </head>
 <body>
 <div class="app-shell hidden" id="appRoot">
 <header class="topbar">
 <div>
-<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v9.5 分頁登入版</span>
+<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v9.7 穩定性修正版</span>
 <h1>個管照顧計畫產生器</h1>
 <p class="subtitle">先選好服務，再貼上照專計畫簡述；系統會先做服務資料防呆，AI 完成後可局部重寫、直接編輯，並保留 AI 原稿供復原與重新檢核。</p>
 </div>
@@ -32,14 +32,15 @@
 <div class="section-heading"><div><p class="step">STEP 1</p><h2>基本核定資料</h2></div></div>
 <div class="two-col">
 <label><span class="field-label">身分別</span>
-<select class="input-control" id="identitySelect">
+<select class="input-control" id="identitySelect" required>
+<option value="">請選擇身分別</option>
 <option value="第三類（一般戶）">第三類（一般戶）</option>
 <option value="第二類（中低收入戶）">第二類（中低收入戶）</option>
 <option value="第一類（長照低收入戶）">第一類（長照低收入戶）</option>
 </select>
 </label>
 <label><span class="field-label">失能等級 CMS</span>
-<select class="input-control" id="cmsSelect"></select>
+<select class="input-control" id="cmsSelect" required></select>
 </label>
 </div>
 <label class="inline-check foreign-row">
@@ -63,6 +64,7 @@
 <button class="filter-chip" data-filter="daycare" type="button">日照／社區</button>
 </div>
 <div class="service-list" id="serviceList"></div>
+<p class="helper service-calc-help">每項服務可同時填「每週固定次數」與「本月單次／備用單位」；本月合計＝每週次數 × 約 4.5 週＋單次／備用。</p>
 </section><section class="card" id="step3">
 <div class="section-heading"><div><p class="step">STEP 3</p><h2>已選服務與額度</h2></div><button class="text-button" id="clearServicesBtn" type="button">清除服務</button></div>
 <div class="approved-list empty-state" id="approvedList">尚未加入服務項目</div>
@@ -212,13 +214,13 @@
 <div aria-hidden="true" class="spinner"></div>
 <h3>AI 正在整理個管照顧計畫</h3>
 <p id="loadingMessage">正在分析照專計畫簡述，請稍候…</p>
-<button class="ghost-button" id="cancelGenerateBtn" type="button">取消產生</button>
+<button class="ghost-button" id="cancelGenerateBtn" type="button">停止等待</button><p class="cancel-note">停止等待只會停止此頁等待回覆；若 AI 已開始處理，該次仍可能計入測試額度。</p>
 </div>
 </div>
 <div aria-live="polite" class="toast hidden" id="toast" role="status"></div>
 
-<script src="data.js?v=9.6"></script>
-<script src="config.js?v=9.6"></script>
-<script src="app.js?v=9.6"></script>
+<script src="data.js?v=9.7"></script>
+<script src="config.js?v=9.7"></script>
+<script src="app.js?v=9.7"></script>
 </body>
 </html>

@@ -59,6 +59,29 @@ function estimateMonth(n) {
   return n ? Math.round(n * 4.5) : 0;
 }
 
+function singleQtyOf(it) {
+  return Math.max(0, Math.floor(Number(it?.singleQty) || 0));
+}
+
+function fixedMonthlyQtyOf(it) {
+  return estimateMonth(it?.weeklyQty);
+}
+
+function syncItemQty(it) {
+  if (!it) return 0;
+  it.weeklyQty = Math.max(0, Math.floor(Number(it.weeklyQty) || 0));
+  it.singleQty = singleQtyOf(it);
+  it.qty = fixedMonthlyQtyOf(it) + it.singleQty;
+  return it.qty;
+}
+
+function makeClientRequestId(scope = "ai") {
+  const suffix = (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function")
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+  return `${scope}-${suffix}`;
+}
+
 function unitMode() {
   return $('input[name="unitMode"]:checked')?.value || "";
 }
@@ -82,13 +105,14 @@ function currentIntervention() {
 }
 
 function calc() {
-  const ident = identityInfo[currentIdentity()];
+  const ident = identityInfo[currentIdentity()] || { rate: 0, key: null, label: "尚未選擇" };
   const budget = Number(DATA.cms[currentCMS()] || 0);
   let total = 0;
   let burden = 0;
   state.items.forEach((i) => {
     const s = service(i.code);
     if (!s) return;
+    syncItemQty(i);
     total += s.amount * i.qty;
     if (ident.key) burden += s[ident.key] * i.qty;
   });
@@ -377,13 +401,14 @@ async function logoutBeta() {
 
 
 function init() {
+  $("#cmsSelect").innerHTML = '<option value="">請選擇失能等級</option>';
   Object.entries(DATA.cms).forEach(([k, v]) => {
     $("#cmsSelect").insertAdjacentHTML(
       "beforeend",
       `<option value="${k}">${k}｜${money.format(v)} 元</option>`
     );
   });
-  $("#cmsSelect").value = "第4級";
+  $("#cmsSelect").value = "";
   renderRespite();
   bind();
   renderAll();
@@ -560,10 +585,11 @@ function renderAll() {
 }
 
 function renderBasic() {
-  const ident = identityInfo[currentIdentity()];
-  $("#budgetAmount").textContent = money.format(DATA.cms[currentCMS()] || 0);
-  $("#copayRate").textContent = `${ident.rate}%`;
-  $("#identityLabel").textContent = ident.label;
+  const ident = identityInfo[currentIdentity()] || null;
+  const budget = DATA.cms[currentCMS()];
+  $("#budgetAmount").textContent = budget !== undefined ? money.format(budget) : "—";
+  $("#copayRate").textContent = ident ? `${ident.rate}%` : "—";
+  $("#identityLabel").textContent = ident ? ident.label : "尚未選擇";
 }
 
 function filtered() {
@@ -578,7 +604,7 @@ function filtered() {
 function toggleService(code) {
   const old = item(code);
   if (old) state.items = state.items.filter((x) => x.code !== code);
-  else state.items.push({ code, weeklyQty: 0, qty: 0, days: [] });
+  else state.items.push({ code, weeklyQty: 0, singleQty: 0, qty: 0, days: [] });
   markDirty();
   renderServices();
   renderApproved();
@@ -590,6 +616,9 @@ function renderServices() {
   el.innerHTML = "";
   filtered().forEach((s) => {
     const it = item(s.code);
+    if (it) syncItemQty(it);
+    const fixedMonthly = it ? fixedMonthlyQtyOf(it) : 0;
+    const singleQty = it ? singleQtyOf(it) : 0;
     const card = document.createElement("article");
     card.className = "service-card" + (it ? " selected" : "");
     card.innerHTML = `
@@ -600,20 +629,53 @@ function renderServices() {
       </button>
       ${it ? `
       <div class="service-editor">
-        <div class="weekly-row">
-          <label><span class="field-label">一週次數</span><input class="input-control weekly-input" type="number" min="0" value="${it.weeklyQty}"></label>
-          <div class="month-estimate">預估每月 <strong>${it.qty}</strong> 單位</div>
+        <div class="calc-section">
+          <div class="editor-section-title">每週固定服務</div>
+          <div class="weekly-row">
+            <label><span class="field-label">一週次數</span><input class="input-control weekly-input" type="number" inputmode="numeric" min="0" step="1" value="${it.weeklyQty}"></label>
+            <div class="month-estimate">固定月估 <strong class="fixed-monthly-value">${fixedMonthly}</strong> 單位</div>
+          </div>
+          <div class="weekdays">${WEEKDAYS.map(([k, n]) => `<button type="button" class="day-btn ${it.days.includes(k) ? "active" : ""}" data-day="${k}">${n}</button>`).join("")}</div>
         </div>
-        <div class="weekdays">${WEEKDAYS.map(([k, n]) => `<button type="button" class="day-btn ${it.days.includes(k) ? "active" : ""}" data-day="${k}">${n}</button>`).join("")}</div>
+        <div class="editor-divider"></div>
+        <div class="calc-section single-config-section">
+          <div class="editor-section-title single-title">本月單次／備用</div>
+          <div class="weekly-row single-row">
+            <label><span class="field-label">額外單次單位</span><input class="input-control single-input" type="number" inputmode="numeric" min="0" step="1" value="${singleQty}"></label>
+            <div class="month-estimate">直接加 <strong class="single-value">${singleQty}</strong> 單位</div>
+          </div>
+        </div>
+        <div class="service-calc-summary">
+          <span>本月合計</span><strong>${it.qty} 單位</strong><small>固定 ${fixedMonthly} + 單次 ${singleQty}</small>
+        </div>
       </div>` : ""}`;
     card.querySelector(".service-main").addEventListener("click", () => toggleService(s.code));
     if (it) {
-      const input = card.querySelector(".weekly-input");
-      input.addEventListener("click", (e) => e.stopPropagation());
-      input.addEventListener("input", (e) => {
+      const weeklyInput = card.querySelector(".weekly-input");
+      const singleInput = card.querySelector(".single-input");
+      const refreshCardNumbers = () => {
+        syncItemQty(it);
+        const fixed = fixedMonthlyQtyOf(it);
+        card.querySelector(".fixed-monthly-value").textContent = fixed;
+        card.querySelector(".single-value").textContent = singleQtyOf(it);
+        const summary = card.querySelector(".service-calc-summary");
+        summary.querySelector("strong").textContent = `${it.qty} 單位`;
+        summary.querySelector("small").textContent = `固定 ${fixed} + 單次 ${singleQtyOf(it)}`;
+      };
+      weeklyInput.addEventListener("click", (e) => e.stopPropagation());
+      weeklyInput.addEventListener("input", (e) => {
         it.weeklyQty = Math.max(0, Math.floor(Number(e.target.value) || 0));
-        it.qty = estimateMonth(it.weeklyQty);
-        card.querySelector(".month-estimate strong").textContent = it.qty;
+        syncItemQty(it);
+        refreshCardNumbers();
+        markDirty();
+        renderApproved();
+        renderTotals();
+      });
+      singleInput.addEventListener("click", (e) => e.stopPropagation());
+      singleInput.addEventListener("input", (e) => {
+        it.singleQty = Math.max(0, Math.floor(Number(e.target.value) || 0));
+        syncItemQty(it);
+        refreshCardNumbers();
         markDirty();
         renderApproved();
         renderTotals();
@@ -623,7 +685,7 @@ function renderServices() {
         const d = btn.dataset.day;
         it.days = it.days.includes(d) ? it.days.filter((x) => x !== d) : [...it.days, d];
         it.weeklyQty = it.days.length;
-        it.qty = estimateMonth(it.weeklyQty);
+        syncItemQty(it);
         markDirty();
         renderServices();
         renderApproved();
@@ -646,20 +708,33 @@ function renderApproved() {
   el.className = "approved-list";
   el.innerHTML = "";
   state.items.forEach((it) => {
+    syncItemQty(it);
     const s = service(it.code);
     const days = WEEKDAYS.filter(([k]) => it.days.includes(k)).map(([, n]) => n).join("、");
+    const fixedMonthly = fixedMonthlyQtyOf(it);
+    const singleQty = singleQtyOf(it);
+    const parts = [];
+    if (it.weeklyQty > 0) parts.push(`每週 ${it.weeklyQty} 次${days ? `｜${days}` : ""}｜固定月估 ${fixedMonthly}`);
+    if (singleQty > 0) parts.push(`單次／備用 +${singleQty}`);
+    if (!parts.length) parts.push("尚未設定服務次數");
     const row = document.createElement("div");
     row.className = "approved-item";
     row.innerHTML = `
       <div>
         <div class="approved-code">${s.code}｜${s.name}</div>
-        <div class="approved-meta">每週 ${it.weeklyQty} 次${days ? `｜${days}` : ""}｜月單位 ${it.qty}</div>
+        <div class="approved-meta">${parts.join("｜")}｜本月合計 ${it.qty} 單位</div>
       </div>
-      <input class="input-control qty-input" type="number" min="0" value="${it.qty}" title="核定月單位數">`;
+      <label class="approved-qty-field"><span>本月合計</span><input class="input-control qty-input" type="number" min="${fixedMonthly}" step="1" value="${it.qty}" title="核定月單位數"><small>固定 ${fixedMonthly} + 單次 ${singleQty}</small></label>`;
     row.querySelector("input").addEventListener("input", (e) => {
-      it.qty = Math.max(0, Math.floor(Number(e.target.value) || 0));
+      const requested = Math.max(fixedMonthly, Math.floor(Number(e.target.value) || 0));
+      it.singleQty = Math.max(0, requested - fixedMonthly);
+      syncItemQty(it);
+      e.target.value = it.qty;
+      row.querySelector("small").textContent = `固定 ${fixedMonthly} + 單次 ${singleQtyOf(it)}`;
+      row.querySelector(".approved-meta").textContent = `${it.weeklyQty > 0 ? `每週 ${it.weeklyQty} 次${days ? `｜${days}` : ""}｜固定月估 ${fixedMonthly}｜` : ""}${singleQtyOf(it) > 0 ? `單次／備用 +${singleQtyOf(it)}｜` : ""}本月合計 ${it.qty} 單位`;
       markDirty();
       renderTotals();
+      renderServices();
     });
     el.appendChild(row);
   });
@@ -697,7 +772,11 @@ function updateFloatingSummary() {
   }
   $("#floatingItems").innerHTML = items.map((it) => {
     const s = service(it.code);
-    return `<div class="floating-item"><strong>${escapeHtml(it.code)}｜${escapeHtml(s?.name || "")}</strong><span>${it.qty} 單位/月</span></div>`;
+    syncItemQty(it);
+    const fixed = fixedMonthlyQtyOf(it);
+    const single = singleQtyOf(it);
+    const split = single > 0 ? `（固定${fixed}+單次${single}）` : "";
+    return `<div class="floating-item"><strong>${escapeHtml(it.code)}｜${escapeHtml(s?.name || "")}</strong><span>${it.qty} 單位/月${split}</span></div>`;
   }).join("") + (state.items.length > items.length ? `<div class="floating-item">另有 ${state.items.length - items.length} 項…</div>` : "");
 }
 
@@ -743,7 +822,7 @@ function selectedRespiteItems() {
 
 function collect() {
   const ident = currentIdentity();
-  const idInfo = identityInfo[ident];
+  const idInfo = identityInfo[ident] || { rate: null };
   const respiteItems = selectedRespiteItems();
   return {
     identity: ident,
@@ -758,8 +837,10 @@ function collect() {
         group: s.group,
         code: s.code,
         name: s.name,
-        qty: String(it.qty),
+        qty: String(syncItemQty(it)),
         weekly_qty: String(it.weeklyQty),
+        fixed_month_qty: String(fixedMonthlyQtyOf(it)),
+        single_qty: String(singleQtyOf(it)),
         days: [...it.days],
         amount: s.amount,
         general: s.general,
@@ -804,6 +885,18 @@ function collect() {
 }
 
 function validate(data) {
+  if (!data.identity) {
+    alert("STEP 1 請先選擇身分別。");
+    $("#identitySelect").focus();
+    $("#step1").scrollIntoView({ behavior: "smooth" });
+    return false;
+  }
+  if (!data.cms_level) {
+    alert("STEP 1 請先選擇失能等級 CMS。");
+    $("#cmsSelect").focus();
+    $("#step1").scrollIntoView({ behavior: "smooth" });
+    return false;
+  }
   const missing = [];
   data.selected_services.forEach((s) => {
     if (!s.qty || Number(s.qty) <= 0) missing.push(`${s.code} ${s.name}（月單位數）`);
@@ -920,15 +1013,19 @@ function asList(value) {
 
 function serviceSchedule(serviceItem) {
   const quantity = parsePlanQuantity(serviceItem?.qty);
-  const weekly = parsePlanQuantity(serviceItem?.weekly_qty);
-  if (quantity === null || weekly === null || weekly <= 0) return "";
+  const weekly = parsePlanQuantity(serviceItem?.weekly_qty) ?? 0;
+  const single = parsePlanQuantity(serviceItem?.single_qty) ?? 0;
+  if (quantity === null) return "";
 
-  // 只有「每週次數 × 4.5」與月單位相符時才顯示換算式。
-  // 若每次服務含多個單位（例如一週3天、每次2單位），單靠目前欄位無法正確推算，
-  // 因此寧可不顯示，也不要產生錯誤的固定換算式。
-  const estimated = Math.round(weekly * 4.5);
-  if (estimated !== Math.round(quantity)) return "";
-  return `${planNumber(weekly)}次*4.5週=${planNumber(quantity)}單位`;
+  const fixed = weekly > 0 ? Math.round(weekly * 4.5) : 0;
+  if (Math.round(fixed + single) !== Math.round(quantity)) return "";
+
+  if (weekly > 0 && single > 0) {
+    return `${planNumber(weekly)}次*4.5週=${planNumber(fixed)}單位＋單次/備用${planNumber(single)}單位`;
+  }
+  if (weekly > 0) return `${planNumber(weekly)}次*4.5週=${planNumber(fixed)}單位`;
+  if (single > 0) return `單次/備用${planNumber(single)}單位`;
+  return "";
 }
 
 function executionMap(ai) {
@@ -1532,7 +1629,7 @@ async function callAI(payload) {
     return data.data || data.result || data;
   } catch (e) {
     if (e.name === "AbortError") {
-      const err = new Error("AI 產生已取消或連線逾時。");
+      const err = new Error("已停止等待 AI 回覆，或連線已逾時；若伺服器端已完成處理，該次仍可能計入額度。");
       err.code = "REQUEST_ABORTED";
       throw err;
     }
@@ -1566,6 +1663,7 @@ async function generate() {
 
   try {
     const ai = await callAI({
+      client_request_id: makeClientRequestId("full"),
       source_text: $("#sourceText").value.trim(),
       change_form_data: d,
       writing_mode: currentWritingMode(),
@@ -1636,6 +1734,7 @@ async function regenerateSection(section, button) {
 
   try {
     const partial = await callAI({
+      client_request_id: makeClientRequestId(`partial-${section}`),
       source_text: $("#sourceText").value.trim(),
       change_form_data: d,
       writing_mode: currentWritingMode(),
@@ -1694,7 +1793,7 @@ function updateModeBanner() {
     b.innerHTML = "<strong>網頁測試版</strong><span>不連線照管平台；目前 AI 為示範模式，可先確認操作流程與產出格式。</span>";
   } else {
     b.className = "mode-banner live";
-    b.innerHTML = "<strong>封閉測試</strong><span>每位測試者共 10 次 AI 呼叫；完整產生與局部重寫各計 1 次。服務碼、月單位、金額與照會單位仍由網頁固定。</span>";
+    b.innerHTML = "<strong>封閉測試</strong><span>每位測試者共 10 次 AI 呼叫；完整產生與局部重寫各計 1 次。每週固定與單次／備用會合併計入月單位，服務碼、金額與照會單位仍由網頁固定。</span>";
   }
 }
 
@@ -1702,12 +1801,17 @@ function loadSample() {
   resetAll(false);
   $("#identitySelect").value = "第三類（一般戶）";
   $("#cmsSelect").value = "第4級";
-  ["BA02", "BA07", "BA20"].forEach((c, idx) => state.items.push({
-    code: c,
-    weeklyQty: [5, 2, 3][idx],
-    qty: [23, 10, 14][idx],
-    days: idx === 0 ? ["mon", "tue", "wed", "thu", "fri"] : idx === 1 ? ["tue", "fri"] : ["mon", "wed", "fri"],
-  }));
+  ["BA02", "BA07", "BA20"].forEach((c, idx) => {
+    const sample = {
+      code: c,
+      weeklyQty: [5, 2, 3][idx],
+      singleQty: [0, 1, 0][idx],
+      qty: 0,
+      days: idx === 0 ? ["mon", "tue", "wed", "thu", "fri"] : idx === 1 ? ["tue", "fri"] : ["mon", "wed", "fri"],
+    };
+    syncItemQty(sample);
+    state.items.push(sample);
+  });
   $('input[name="unitMode"][value="designated"]').checked = true;
   $("#designatedUnit").disabled = false;
   $("#designatedUnit").value = "大安心喜樂福祉有限公司";
@@ -1731,8 +1835,8 @@ function resetAll(confirmFirst = true) {
   state.aidItems = [];
   document.querySelectorAll("input[type=text],input[type=number],input[type=search],textarea").forEach((x) => x.value = "");
   document.querySelectorAll("input[type=checkbox],input[type=radio]").forEach((x) => x.checked = false);
-  $("#identitySelect").value = "第三類（一般戶）";
-  $("#cmsSelect").value = "第4級";
+  $("#identitySelect").value = "";
+  $("#cmsSelect").value = "";
   $("#writingModeSelect").value = "standard";
   $("#interventionSelect").value = "尚未使用";
   $("#interventionCustom").classList.add("hidden");
