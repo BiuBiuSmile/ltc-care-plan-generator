@@ -59,20 +59,96 @@ function estimateMonth(n) {
   return n ? Math.round(n * 4.5) : 0;
 }
 
-function singleQtyOf(it) {
+function storedWeeklyQtyOf(it) {
+  return Math.max(0, Math.floor(Number(it?.weeklyQty) || 0));
+}
+
+function storedSingleQtyOf(it) {
   return Math.max(0, Math.floor(Number(it?.singleQty) || 0));
 }
 
+function weeklyEnabledOf(it) {
+  if (!it) return false;
+  if (typeof it.weeklyEnabled === "boolean") return it.weeklyEnabled;
+  return storedWeeklyQtyOf(it) > 0 || (Array.isArray(it.days) && it.days.length > 0);
+}
+
+function singleEnabledOf(it) {
+  if (!it) return false;
+  if (typeof it.singleEnabled === "boolean") return it.singleEnabled;
+  return storedSingleQtyOf(it) > 0;
+}
+
+function weeklyQtyOf(it) {
+  return weeklyEnabledOf(it) ? storedWeeklyQtyOf(it) : 0;
+}
+
+function singleQtyOf(it) {
+  return singleEnabledOf(it) ? storedSingleQtyOf(it) : 0;
+}
+
 function fixedMonthlyQtyOf(it) {
-  return estimateMonth(it?.weeklyQty);
+  return estimateMonth(weeklyQtyOf(it));
 }
 
 function syncItemQty(it) {
   if (!it) return 0;
-  it.weeklyQty = Math.max(0, Math.floor(Number(it.weeklyQty) || 0));
-  it.singleQty = singleQtyOf(it);
-  it.qty = fixedMonthlyQtyOf(it) + it.singleQty;
+  it.weeklyQty = storedWeeklyQtyOf(it);
+  it.singleQty = storedSingleQtyOf(it);
+  if (typeof it.weeklyEnabled !== "boolean") it.weeklyEnabled = it.weeklyQty > 0 || (Array.isArray(it.days) && it.days.length > 0);
+  if (typeof it.singleEnabled !== "boolean") it.singleEnabled = it.singleQty > 0;
+  it.qty = fixedMonthlyQtyOf(it) + singleQtyOf(it);
   return it.qty;
+}
+
+function getCapacityInfo(s) {
+  const { remaining } = calc();
+  const availableAmount = Math.max(0, remaining);
+  const additionalUnits = s?.amount > 0 ? Math.floor(availableAmount / s.amount) : 0;
+  const it = item(s?.code);
+  const currentWeeklyQty = weeklyQtyOf(it);
+  const currentFixedMonthly = estimateMonth(currentWeeklyQty);
+  let additionalWeeklyQty = 0;
+  let additionalMonthlyQty = 0;
+
+  for (let delta = 1; delta <= 1000; delta += 1) {
+    const nextMonthly = estimateMonth(currentWeeklyQty + delta);
+    const monthlyDelta = Math.max(0, nextMonthly - currentFixedMonthly);
+    if (monthlyDelta > additionalUnits) break;
+    additionalWeeklyQty = delta;
+    additionalMonthlyQty = monthlyDelta;
+  }
+
+  return {
+    remaining,
+    availableAmount,
+    additionalUnits,
+    additionalWeeklyQty,
+    additionalMonthlyQty,
+    additionalCost: additionalMonthlyQty * (s?.amount || 0),
+    additionalSingleCost: additionalUnits * (s?.amount || 0),
+  };
+}
+
+function capacityMarkup(s) {
+  if (!currentCMS()) return `<span class="capacity-empty">請先選擇失能等級 CMS，系統才會計算剩餘額度可增加量</span>`;
+  const info = getCapacityInfo(s);
+  if (info.remaining < 0) return `<span class="capacity-empty">目前已超出核定額度，${s.code} 暫無可增加數量</span>`;
+  if (info.remaining === 0) return `<span class="capacity-empty">目前核定額度已使用完畢，${s.code} 暫無可增加數量</span>`;
+  if (info.additionalUnits <= 0) return `<span class="capacity-empty">剩餘 ${money.format(info.availableAmount)} 元，目前不足以再增加 ${s.code}</span>`;
+
+  const weeklyLine = info.additionalWeeklyQty > 0
+    ? `<span class="capacity-weekly">每週約 <strong>+${info.additionalWeeklyQty}</strong> 次</span><span class="capacity-monthly">每月約 +${info.additionalMonthlyQty} 單位｜約 ${money.format(info.additionalCost)} 元</span>`
+    : `<span class="capacity-empty">目前不足以再增加完整的每週服務次數</span>`;
+
+  return `${weeklyLine}<span class="capacity-single">單次服務最多 <strong>+${info.additionalUnits}</strong> 單位｜約 ${money.format(info.additionalSingleCost)} 元</span>`;
+}
+
+function updateCapacityHints() {
+  document.querySelectorAll(".capacity-hint[data-code]").forEach((node) => {
+    const s = service(node.dataset.code);
+    if (s) node.innerHTML = capacityMarkup(s);
+  });
 }
 
 function makeClientRequestId(scope = "ai") {
@@ -604,7 +680,20 @@ function filtered() {
 function toggleService(code) {
   const old = item(code);
   if (old) state.items = state.items.filter((x) => x.code !== code);
-  else state.items.push({ code, weeklyQty: 0, singleQty: 0, qty: 0, days: [] });
+  else state.items.push({ code, weeklyEnabled: false, singleEnabled: false, weeklyQty: 0, singleQty: 0, qty: 0, days: [] });
+  markDirty();
+  renderServices();
+  renderApproved();
+  renderTotals();
+}
+
+function toggleCalcMode(code, mode) {
+  const it = item(code);
+  if (!it) return;
+  if (mode === "weekly") it.weeklyEnabled = !weeklyEnabledOf(it);
+  else if (mode === "single") it.singleEnabled = !singleEnabledOf(it);
+  else return;
+  syncItemQty(it);
   markDirty();
   renderServices();
   renderApproved();
@@ -617,8 +706,20 @@ function renderServices() {
   filtered().forEach((s) => {
     const it = item(s.code);
     if (it) syncItemQty(it);
+    const weeklyEnabled = it ? weeklyEnabledOf(it) : false;
+    const singleEnabled = it ? singleEnabledOf(it) : false;
+    const storedWeekly = it ? storedWeeklyQtyOf(it) : 0;
+    const storedSingle = it ? storedSingleQtyOf(it) : 0;
     const fixedMonthly = it ? fixedMonthlyQtyOf(it) : 0;
     const singleQty = it ? singleQtyOf(it) : 0;
+    const combinedText = weeklyEnabled && singleEnabled
+      ? `${fixedMonthly} 週期月估 + ${singleQty} 單次服務`
+      : weeklyEnabled
+        ? `${fixedMonthly} 週期月估`
+        : singleEnabled
+          ? `${singleQty} 單次服務`
+          : "請先選擇計算方式";
+
     const card = document.createElement("article");
     card.className = "service-card" + (it ? " selected" : "");
     card.innerHTML = `
@@ -629,62 +730,95 @@ function renderServices() {
       </button>
       ${it ? `
       <div class="service-editor">
+        <div class="calc-mode-switch multi-mode" role="group" aria-label="${s.code} 計算方式，可複選">
+          <button type="button" class="calc-mode-btn${weeklyEnabled ? " active" : ""}" data-mode="weekly" aria-pressed="${weeklyEnabled}">每週計算</button>
+          <button type="button" class="calc-mode-btn${singleEnabled ? " active" : ""}" data-mode="single" aria-pressed="${singleEnabled}">單次計算</button>
+        </div>
+        <p class="calc-mode-note">兩種方式可同時選擇，系統會自動合併本月單位數。</p>
+
+        ${weeklyEnabled ? `
         <div class="calc-section">
           <div class="editor-section-title">每週固定服務</div>
           <div class="weekly-row">
-            <label><span class="field-label">一週次數</span><input class="input-control weekly-input" type="number" inputmode="numeric" min="0" step="1" value="${it.weeklyQty}"></label>
-            <div class="month-estimate">固定月估 <strong class="fixed-monthly-value">${fixedMonthly}</strong> 單位</div>
+            <label><span class="field-label">一週次數</span><input class="input-control weekly-input" type="number" inputmode="numeric" min="0" step="1" value="${storedWeekly}"></label>
+            <div class="month-estimate">固定服務預估每月 <strong class="fixed-monthly-value">${fixedMonthly}</strong> 單位</div>
           </div>
           <div class="weekdays">${WEEKDAYS.map(([k, n]) => `<button type="button" class="day-btn ${it.days.includes(k) ? "active" : ""}" data-day="${k}">${n}</button>`).join("")}</div>
-        </div>
-        <div class="editor-divider"></div>
+        </div>` : ""}
+
+        ${weeklyEnabled && singleEnabled ? `<div class="editor-divider"></div>` : ""}
+
+        ${singleEnabled ? `
         <div class="calc-section single-config-section">
-          <div class="editor-section-title single-title">本月單次／備用</div>
+          <div class="editor-section-title single-title">單次服務</div>
           <div class="weekly-row single-row">
-            <label><span class="field-label">額外單次單位</span><input class="input-control single-input" type="number" inputmode="numeric" min="0" step="1" value="${singleQty}"></label>
-            <div class="month-estimate">直接加 <strong class="single-value">${singleQty}</strong> 單位</div>
+            <label><span class="field-label">本月單次單位</span><input class="input-control single-input" type="number" inputmode="numeric" min="0" step="1" value="${storedSingle}"></label>
+            <div class="month-estimate single-estimate">單次服務直接加 <strong class="single-value">${singleQty}</strong> 單位<br><small>不乘 4.5 週</small></div>
           </div>
+        </div>` : ""}
+
+        <div class="service-calc-summary combined-total${!weeklyEnabled && !singleEnabled ? " is-empty" : ""}">
+          <span>本月合計</span><strong>${it.qty} 單位</strong><small>${combinedText}</small>
         </div>
-        <div class="service-calc-summary">
-          <span>本月合計</span><strong>${it.qty} 單位</strong><small>固定 ${fixedMonthly} + 單次 ${singleQty}</small>
+
+        <div class="capacity-box">
+          <span class="capacity-title">目前額度還能增加</span>
+          <p class="capacity-hint" data-code="${s.code}">${capacityMarkup(s)}</p>
         </div>
       </div>` : ""}`;
+
     card.querySelector(".service-main").addEventListener("click", () => toggleService(s.code));
     if (it) {
+      card.querySelectorAll(".calc-mode-btn").forEach((btn) => btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleCalcMode(s.code, btn.dataset.mode);
+      }));
+
       const weeklyInput = card.querySelector(".weekly-input");
+      if (weeklyInput) {
+        weeklyInput.addEventListener("click", (e) => e.stopPropagation());
+        weeklyInput.addEventListener("input", (e) => {
+          it.weeklyQty = Math.max(0, Math.floor(Number(e.target.value) || 0));
+          syncItemQty(it);
+          const fixed = fixedMonthlyQtyOf(it);
+          card.querySelector(".fixed-monthly-value").textContent = fixed;
+          const summary = card.querySelector(".service-calc-summary");
+          summary.querySelector("strong").textContent = `${it.qty} 單位`;
+          summary.querySelector("small").textContent = singleEnabledOf(it)
+            ? `${fixed} 週期月估 + ${singleQtyOf(it)} 單次服務`
+            : `${fixed} 週期月估`;
+          markDirty();
+          renderApproved();
+          renderTotals();
+          updateCapacityHints();
+        });
+      }
+
       const singleInput = card.querySelector(".single-input");
-      const refreshCardNumbers = () => {
-        syncItemQty(it);
-        const fixed = fixedMonthlyQtyOf(it);
-        card.querySelector(".fixed-monthly-value").textContent = fixed;
-        card.querySelector(".single-value").textContent = singleQtyOf(it);
-        const summary = card.querySelector(".service-calc-summary");
-        summary.querySelector("strong").textContent = `${it.qty} 單位`;
-        summary.querySelector("small").textContent = `固定 ${fixed} + 單次 ${singleQtyOf(it)}`;
-      };
-      weeklyInput.addEventListener("click", (e) => e.stopPropagation());
-      weeklyInput.addEventListener("input", (e) => {
-        it.weeklyQty = Math.max(0, Math.floor(Number(e.target.value) || 0));
-        syncItemQty(it);
-        refreshCardNumbers();
-        markDirty();
-        renderApproved();
-        renderTotals();
-      });
-      singleInput.addEventListener("click", (e) => e.stopPropagation());
-      singleInput.addEventListener("input", (e) => {
-        it.singleQty = Math.max(0, Math.floor(Number(e.target.value) || 0));
-        syncItemQty(it);
-        refreshCardNumbers();
-        markDirty();
-        renderApproved();
-        renderTotals();
-      });
+      if (singleInput) {
+        singleInput.addEventListener("click", (e) => e.stopPropagation());
+        singleInput.addEventListener("input", (e) => {
+          it.singleQty = Math.max(0, Math.floor(Number(e.target.value) || 0));
+          syncItemQty(it);
+          card.querySelector(".single-value").textContent = singleQtyOf(it);
+          const summary = card.querySelector(".service-calc-summary");
+          summary.querySelector("strong").textContent = `${it.qty} 單位`;
+          summary.querySelector("small").textContent = weeklyEnabledOf(it)
+            ? `${fixedMonthlyQtyOf(it)} 週期月估 + ${singleQtyOf(it)} 單次服務`
+            : `${singleQtyOf(it)} 單次服務`;
+          markDirty();
+          renderApproved();
+          renderTotals();
+          updateCapacityHints();
+        });
+      }
+
       card.querySelectorAll(".day-btn").forEach((btn) => btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const d = btn.dataset.day;
         it.days = it.days.includes(d) ? it.days.filter((x) => x !== d) : [...it.days, d];
         it.weeklyQty = it.days.length;
+        it.weeklyEnabled = true;
         syncItemQty(it);
         markDirty();
         renderServices();
@@ -711,11 +845,12 @@ function renderApproved() {
     syncItemQty(it);
     const s = service(it.code);
     const days = WEEKDAYS.filter(([k]) => it.days.includes(k)).map(([, n]) => n).join("、");
+    const weeklyQty = weeklyQtyOf(it);
     const fixedMonthly = fixedMonthlyQtyOf(it);
     const singleQty = singleQtyOf(it);
     const parts = [];
-    if (it.weeklyQty > 0) parts.push(`每週 ${it.weeklyQty} 次${days ? `｜${days}` : ""}｜固定月估 ${fixedMonthly}`);
-    if (singleQty > 0) parts.push(`單次／備用 +${singleQty}`);
+    if (weeklyQty > 0) parts.push(`每週 ${weeklyQty} 次${days ? `｜${days}` : ""}｜固定月估 ${fixedMonthly}`);
+    if (singleQty > 0) parts.push(`單次服務 +${singleQty}`);
     if (!parts.length) parts.push("尚未設定服務次數");
     const row = document.createElement("div");
     row.className = "approved-item";
@@ -724,14 +859,19 @@ function renderApproved() {
         <div class="approved-code">${s.code}｜${s.name}</div>
         <div class="approved-meta">${parts.join("｜")}｜本月合計 ${it.qty} 單位</div>
       </div>
-      <label class="approved-qty-field"><span>本月合計</span><input class="input-control qty-input" type="number" min="${fixedMonthly}" step="1" value="${it.qty}" title="核定月單位數"><small>固定 ${fixedMonthly} + 單次 ${singleQty}</small></label>`;
+      <label class="approved-qty-field"><span>本月合計</span><input class="input-control qty-input" type="number" min="${fixedMonthly}" step="1" value="${it.qty}" title="核定月單位數"><small>固定 ${fixedMonthly} + 單次 ${singleQty}</small></label>
+      <div class="capacity-box approved-capacity-box">
+        <span class="capacity-title">目前額度還能增加</span>
+        <p class="capacity-hint" data-code="${s.code}">${capacityMarkup(s)}</p>
+      </div>`;
     row.querySelector("input").addEventListener("input", (e) => {
       const requested = Math.max(fixedMonthly, Math.floor(Number(e.target.value) || 0));
+      it.singleEnabled = true;
       it.singleQty = Math.max(0, requested - fixedMonthly);
       syncItemQty(it);
       e.target.value = it.qty;
       row.querySelector("small").textContent = `固定 ${fixedMonthly} + 單次 ${singleQtyOf(it)}`;
-      row.querySelector(".approved-meta").textContent = `${it.weeklyQty > 0 ? `每週 ${it.weeklyQty} 次${days ? `｜${days}` : ""}｜固定月估 ${fixedMonthly}｜` : ""}${singleQtyOf(it) > 0 ? `單次／備用 +${singleQtyOf(it)}｜` : ""}本月合計 ${it.qty} 單位`;
+      row.querySelector(".approved-meta").textContent = `${weeklyQtyOf(it) > 0 ? `每週 ${weeklyQtyOf(it)} 次${days ? `｜${days}` : ""}｜固定月估 ${fixedMonthly}｜` : ""}${singleQtyOf(it) > 0 ? `單次服務 +${singleQtyOf(it)}｜` : ""}本月合計 ${it.qty} 單位`;
       markDirty();
       renderTotals();
       renderServices();
@@ -838,7 +978,7 @@ function collect() {
         code: s.code,
         name: s.name,
         qty: String(syncItemQty(it)),
-        weekly_qty: String(it.weeklyQty),
+        weekly_qty: String(weeklyQtyOf(it)),
         fixed_month_qty: String(fixedMonthlyQtyOf(it)),
         single_qty: String(singleQtyOf(it)),
         days: [...it.days],
@@ -1804,6 +1944,8 @@ function loadSample() {
   ["BA02", "BA07", "BA20"].forEach((c, idx) => {
     const sample = {
       code: c,
+      weeklyEnabled: true,
+      singleEnabled: [0, 1, 0][idx] > 0,
       weeklyQty: [5, 2, 3][idx],
       singleQty: [0, 1, 0][idx],
       qty: 0,
