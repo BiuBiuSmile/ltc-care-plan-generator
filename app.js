@@ -29,6 +29,7 @@ let betaQuota = { max: 10, used: 0, remaining: 10 };
 let adminKey = sessionStorage.getItem(ADMIN_KEY_SESSION) || "";
 let adminMode = false;
 let quotaLogoutScheduled = false;
+let outputNeedsRegeneration = false;
 
 const PARTIAL_SECTION_LABELS = {
   care_analysis: "照顧面",
@@ -180,9 +181,25 @@ function currentIntervention() {
   return value;
 }
 
+function effectiveBudget() {
+  const baseBudget = Number(DATA.cms[currentCMS()] || 0);
+  if (!baseBudget) return 0;
+  return $("#foreignEnabled")?.checked ? Math.round(baseBudget * 0.30) : baseBudget;
+}
+
+function syncForeignAmount() {
+  const input = $("#foreignAmount");
+  if (!input) return;
+  if (!$("#foreignEnabled")?.checked || !currentCMS()) {
+    input.value = "";
+    return;
+  }
+  input.value = String(effectiveBudget());
+}
+
 function calc() {
   const ident = identityInfo[currentIdentity()] || { rate: 0, key: null, label: "尚未選擇" };
-  const budget = Number(DATA.cms[currentCMS()] || 0);
+  const budget = effectiveBudget();
   let total = 0;
   let burden = 0;
   state.items.forEach((i) => {
@@ -202,8 +219,20 @@ function calc() {
   };
 }
 
+function markOutputNeedsRegeneration() {
+  if (!lastQualityContext || $("#outputSection")?.classList.contains("hidden")) return;
+  outputNeedsRegeneration = true;
+  const status = $("#outputStatus");
+  if (status) status.textContent = "⚠ 前置資料已變更，目前計畫為舊版本，請重新產生後再複製或檢核。";
+  const copyBtn = $("#copyBtn");
+  if (copyBtn) copyBtn.disabled = true;
+  $$(".partial-rewrite-btn").forEach((btn) => { btn.disabled = true; });
+  markQualityStale();
+}
+
 function markDirty() {
   state.dirty = true;
+  markOutputNeedsRegeneration();
 }
 
 function markClean() {
@@ -243,6 +272,10 @@ function updateDraftState() {
 function setAiDraft(text) {
   aiDraftText = String(text || "");
   $("#outputText").value = aiDraftText;
+  outputNeedsRegeneration = false;
+  const copyBtn = $("#copyBtn");
+  if (copyBtn) copyBtn.disabled = false;
+  $$(".partial-rewrite-btn").forEach((btn) => { btn.disabled = false; });
   updateDraftState();
 }
 
@@ -504,6 +537,7 @@ function bind() {
     renderTotals();
   });
   $("#cmsSelect").addEventListener("change", () => {
+    syncForeignAmount();
     renderBasic();
     renderTotals();
   });
@@ -598,14 +632,16 @@ function bind() {
     }, "#mealEnabled");
   });
 
-  $("#foreignAmount").addEventListener("input", () => {
-    if (hasTextValue("#foreignAmount")) $("#foreignEnabled").checked = true;
-  });
+  $("#foreignAmount").readOnly = true;
   $("#foreignEnabled").addEventListener("change", () => {
-    if ($("#foreignEnabled").checked) return;
-    confirmAndClear("聘用外籍看護 30% 額度", hasTextValue("#foreignAmount"), () => {
-      $("#foreignAmount").value = "";
-    }, "#foreignEnabled");
+    if (!$("#foreignEnabled").checked) {
+      confirmAndClear("聘用外籍看護 30% 額度", hasTextValue("#foreignAmount"), () => {
+        $("#foreignAmount").value = "";
+      }, "#foreignEnabled");
+    }
+    syncForeignAmount();
+    renderBasic();
+    renderTotals();
   });
 
   $("#addAidBtn").addEventListener("click", () => {
@@ -643,10 +679,14 @@ function bind() {
 
   // 所有使用者輸入都視為尚未另行保存；動態服務按鈕會另外呼叫 markDirty。
   document.addEventListener("input", (e) => {
-    if (e.target.matches("input, textarea, select")) markDirty();
+    if (!e.target.matches("input, textarea, select")) return;
+    if (["outputText", "emailInput", "verificationCodeInput", "serviceSearch"].includes(e.target.id)) return;
+    markDirty();
   });
   document.addEventListener("change", (e) => {
-    if (e.target.matches("input, textarea, select")) markDirty();
+    if (!e.target.matches("input, textarea, select")) return;
+    if (["outputText", "emailInput", "verificationCodeInput", "serviceSearch"].includes(e.target.id)) return;
+    markDirty();
   });
   window.addEventListener("beforeunload", (e) => {
     if (!state.dirty) return;
@@ -665,8 +705,11 @@ function renderAll() {
 
 function renderBasic() {
   const ident = identityInfo[currentIdentity()] || null;
-  const budget = DATA.cms[currentCMS()];
+  const baseBudget = DATA.cms[currentCMS()];
+  const budget = currentCMS() ? effectiveBudget() : undefined;
   $("#budgetAmount").textContent = budget !== undefined ? money.format(budget) : "—";
+  const budgetBox = $("#budgetAmount")?.closest(".summary-box");
+  if (budgetBox) budgetBox.title = $("#foreignEnabled")?.checked && baseBudget ? `原 CMS 額度 ${money.format(baseBudget)} 元；外籍看護可使用 30%` : "";
   $("#copayRate").textContent = ident ? `${ident.rate}%` : "—";
   $("#identityLabel").textContent = ident ? ident.label : "尚未選擇";
 }
@@ -882,6 +925,7 @@ function renderApproved() {
     el.appendChild(row);
   });
   updateFloatingSummary();
+  updateCapacityHints();
 }
 
 function renderTotals() {
@@ -943,7 +987,7 @@ function relocateStep3ForLayout() {
 
   const desktop = window.matchMedia("(min-width: 1181px)").matches;
   if (desktop) {
-    if (step3.parentElement !== sidebar) sidebar.insertBefore(step3, nav ? nav.nextSibling : sidebar.firstChild);
+    if (step3.parentElement !== sidebar) sidebar.insertBefore(step3, nav || sidebar.firstChild);
   } else {
     if (step3.parentElement !== serviceGrid) serviceGrid.appendChild(step3);
   }
@@ -1128,6 +1172,12 @@ function validate(data) {
     $("#sourceText").focus();
     return false;
   }
+  const totals = calc();
+  if (totals.remaining < 0) {
+    alert(`目前服務總額已超出可使用額度 ${money.format(Math.abs(totals.remaining))} 元。\n\n請先調整服務單位數後再產生計畫。`);
+    $("#step3").scrollIntoView({ behavior: "smooth", block: "start" });
+    return false;
+  }
   return true;
 }
 
@@ -1224,7 +1274,7 @@ function serviceLine(s, map) {
 function allowedProblemServiceMap(d) {
   const map = {};
   (d.selected_services || []).forEach((x) => {
-    const code = planClean(x.code);
+    const code = planClean(x.code).toUpperCase();
     if (code) map[code] = planClean(x.name);
   });
 
@@ -1233,14 +1283,14 @@ function allowedProblemServiceMap(d) {
 
   const respite = d.respite || {};
   (respite.items || []).forEach((x) => {
-    const code = planClean(x.code);
+    const code = planClean(x.code).toUpperCase();
     if (code) map[code] = planClean(x.name);
   });
 
   const aid = d.assistive_device || {};
   (aid.items || []).forEach((x) => {
     const text = planClean(x.item);
-    const m = text.match(/^([A-Z]{1,3}\d+(?:-\d+)?)/i);
+    const m = text.match(/^([A-Z]{1,3}\d+(?:-\d+)?(?:[A-Z]\d*)?)/i);
     if (m) map[m[1].toUpperCase()] = text.replace(m[1], "").replace(/^[\s\[【(（:-]+|[\]】)）]+$/g, "").trim() || "輔具";
   });
 
@@ -1498,7 +1548,7 @@ function normalizeForEvidence(value) {
 
 function extractCodesFromText(value) {
   const text = String(value ?? "").toUpperCase();
-  const matches = text.match(/(?:BA|BB|BD|CA|CB|CC|CD|DA|EA|EB|EG|GA|SC|OT|AA)\d+(?:-\d+)?/g) || [];
+  const matches = text.match(/(?:BA|BB|BD|CA|CB|CC|CD|DA|EA|EB|EG|GA|SC|OT|AA)\d+(?:-\d+)?(?:[A-Z]\d*)?/g) || [];
   return [...new Set(matches)];
 }
 
@@ -1598,6 +1648,13 @@ function runQualityChecks(ai, d, outputText, sourceText) {
   if (cmsOk && identityOk) push("pass", "CMS 與身分別", `CMS ${cmsNumber}、額度 ${planNumber(cmsAmount)} 元/月及${identityShort}皆一致。`);
   else push("error", "CMS 與身分別", `${!identityOk ? "身分別不一致。" : ""}${!cmsOk ? "CMS 等級或額度不一致。" : ""}`);
 
+  if (d.professional_30_percent?.enabled) {
+    const expected30 = Math.round(Number(cmsAmount || 0) * 0.30);
+    const foreignOk = output.includes("聘用外籍看護，僅能使用30%額度") && output.includes(`${planNumber(expected30)}元/月`);
+    if (foreignOk) push("pass", "外籍看護 30% 額度", `實際可使用額度 ${planNumber(expected30)} 元/月。`);
+    else push("error", "外籍看護 30% 額度", `應顯示可使用額度 ${planNumber(expected30)} 元/月。`);
+  }
+
   // 4. 金額 / 部分負擔（照顧+日照固定段落）
   const totals = expectedCareTotals(d);
   if (!totals.serviceItems.length) {
@@ -1689,6 +1746,10 @@ function performQualityCheck() {
 
 function recheckQuality() {
   if (!lastQualityContext) return;
+  if (outputNeedsRegeneration) {
+    alert("前置資料已變更，現有計畫已不是最新版本，請先重新產生。 ");
+    return;
+  }
   performQualityCheck();
   showToast("已重新檢核目前產出內容");
 }
@@ -1856,11 +1917,17 @@ async function generate() {
     showGenerateError(e);
   } finally {
     setLoading(false);
-    btn.disabled = Number(betaQuota?.remaining || 0) <= 0;
-    btn.textContent = Number(betaQuota?.remaining || 0) <= 0 ? "AI 測試額度已用完" : "AI 產生個管計畫（使用 1 次）";
+    if (adminMode) {
+      btn.disabled = false;
+      btn.textContent = "AI 產生個管計畫（管理者）";
+      $("#generateHint").textContent = "管理者模式：AI 呼叫不扣測試者額度。";
+    } else {
+      btn.disabled = Number(betaQuota?.remaining || 0) <= 0;
+      btn.textContent = Number(betaQuota?.remaining || 0) <= 0 ? "AI 測試額度已用完" : "AI 產生個管計畫（使用 1 次）";
+      $("#generateHint").textContent = "固定資料由網頁控制；AI 依撰寫模式整理照顧問題分析、問題清單與服務執行目的。";
+    }
     $("#retryBtn").disabled = false;
     $("#errorRetryBtn").disabled = false;
-    $("#generateHint").textContent = "固定資料由網頁控制；AI 依撰寫模式整理照顧問題分析、問題清單與服務執行目的。";
   }
 }
 
@@ -1878,6 +1945,10 @@ function mergePartialAi(baseAi, partialAi, section) {
 
 async function regenerateSection(section, button) {
   if (!PARTIAL_SECTION_LABELS[section]) return;
+  if (outputNeedsRegeneration) {
+    alert("前置資料已變更，請先重新產生完整計畫，再使用局部重寫。");
+    return;
+  }
   if (!lastQualityContext) {
     alert("請先產生一份完整計畫，再使用局部重寫。");
     return;
@@ -1943,6 +2014,10 @@ function restoreAiDraft() {
 }
 
 async function copyOutput() {
+  if (outputNeedsRegeneration) {
+    alert("前置資料已變更，請先重新產生計畫後再複製。");
+    return;
+  }
   const text = $("#outputText").value;
   if (!text.trim()) return;
   try {
@@ -2019,6 +2094,7 @@ function resetAll(confirmFirst = true) {
   $("#outputSection").classList.add("hidden");
   lastQualityContext = null;
   aiDraftText = "";
+  outputNeedsRegeneration = false;
   updateDraftState();
   $("#qualityOverall").className = "quality-overall pending";
   $("#qualityOverall").textContent = "尚未檢核";
