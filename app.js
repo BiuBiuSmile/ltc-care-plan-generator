@@ -930,11 +930,26 @@ function renderApproved() {
 
 function renderTotals() {
   const t = calc();
+  const hasCms = Boolean(currentCMS());
+  const hasIdentity = Boolean(currentIdentity());
+  const p = $("#budgetProgress");
+
   $("#serviceTotal").textContent = money.format(t.total);
-  $("#copayTotal").textContent = money.format(t.burden);
+  $("#copayTotal").textContent = hasIdentity ? money.format(t.burden) : "—";
+
+  if (!hasCms) {
+    $("#remainingAmount").textContent = "—";
+    $("#budgetUsage").textContent = "—";
+    p.style.width = "0%";
+    p.classList.remove("warning", "over");
+    $("#budgetHint").textContent = "請先選擇失能等級 CMS，系統才會計算可使用額度與剩餘額度。";
+    updateFloatingSummary();
+    updateCapacityHints();
+    return;
+  }
+
   $("#remainingAmount").textContent = `${t.remaining < 0 ? "超出 " : ""}${money.format(Math.abs(t.remaining))} 元`;
   $("#budgetUsage").textContent = `${t.usage.toFixed(1)}%`;
-  const p = $("#budgetProgress");
   p.style.width = `${Math.min(100, t.usage)}%`;
   p.classList.toggle("warning", t.usage >= 80 && t.usage <= 100);
   p.classList.toggle("over", t.usage > 100);
@@ -944,6 +959,7 @@ function renderTotals() {
       ? `已超出核定額度 ${money.format(Math.abs(t.remaining))} 元。`
       : `已使用 ${t.usage.toFixed(1)}% 核定額度。`;
   updateFloatingSummary();
+  updateCapacityHints();
 }
 
 function updateFloatingSummary() {
@@ -999,7 +1015,7 @@ function renderRespite() {
   DATA.respite.forEach((r) => {
     const row = document.createElement("label");
     row.className = "respite-row";
-    row.innerHTML = `<input type="checkbox" data-code="${r.code}"><span><strong>${r.code}</strong>｜${r.name}</span><input class="input-control respite-count" data-count="${r.code}" type="number" min="0" placeholder="核定次數／單位">`;
+    row.innerHTML = `<input type="checkbox" data-code="${r.code}"><span><strong>${r.code}</strong>｜${r.name}</span><input class="input-control respite-count" data-count="${r.code}" type="number" min="1" step="1" placeholder="核定次數／單位">`;
     el.appendChild(row);
   });
 }
@@ -1145,16 +1161,20 @@ function validate(data) {
     return false;
   }
   for (const r of data.respite.items) {
-    if (!r.approved) {
-      alert(`已勾選 ${r.code} ${r.name}，請填寫核定次數／單位。`);
+    const approved = Number(r.approved);
+    if (!Number.isInteger(approved) || approved <= 0) {
+      alert(`已勾選 ${r.code} ${r.name}，核定次數／單位必須為大於 0 的整數。`);
       $(`[data-count="${r.code}"]`).focus();
       return false;
     }
   }
-  if (data.meal.enabled && !data.meal.count_per_month) {
-    alert("已勾選餐飲服務，請填寫「餐／月」。");
-    $("#mealCount").focus();
-    return false;
+  if (data.meal.enabled) {
+    const mealCount = Number(data.meal.count_per_month);
+    if (!Number.isInteger(mealCount) || mealCount <= 0) {
+      alert("已勾選餐飲服務，「餐／月」必須為大於 0 的整數。");
+      $("#mealCount").focus();
+      return false;
+    }
   }
   if ($("#interventionSelect").value === "自訂" && !currentIntervention()) {
     alert("已選擇自訂服務介入後改變，請輸入內容。");

@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="robots" content="noindex,nofollow"/>
 <meta name="theme-color" content="#648da7"/>
-<meta name="description" content="個管照顧計畫產生器 v10.0：穩定性修正、外籍看護 30% 額度、防舊計畫誤用與服務碼檢核修正。"/>
+<meta name="description" content="個管照顧計畫產生器 v10.1：額度提示即時刷新、輸入防呆與登入／AI 請求安全強化。"/>
 <title>個管照顧計畫產生器｜使用頁</title>
 <link href="icon.png" rel="icon" type="image/png"/>
-<link href="styles.css?v=10.0" rel="stylesheet"/>
+<link href="styles.css?v=10.1" rel="stylesheet"/>
 </head>
 <body>
 <div class="app-shell hidden" id="appRoot">
 <header class="topbar">
 <div>
-<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v10.0 穩定版</span>
+<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v10.1 穩定版</span>
 <h1>個管照顧計畫產生器</h1>
 <p class="subtitle">先選好服務，再貼上照專計畫簡述；系統會先做服務資料防呆，AI 完成後可局部重寫、直接編輯，並保留 AI 原稿供復原與重新檢核。</p>
 </div>
@@ -103,7 +103,7 @@
 <div class="option-card">
 <label class="inline-check"><input id="mealEnabled" type="checkbox"/><strong>餐飲服務</strong></label>
 <div class="two-col option-fields">
-<input class="input-control" id="mealCount" min="0" placeholder="餐／月，例如 62" type="number"/>
+<input class="input-control" id="mealCount" min="1" step="1" placeholder="餐／月，例如 62" type="number"/>
 <input class="input-control" id="mealUnit" placeholder="送餐單位（選填）"/>
 </div>
 <p class="format-preview">產出格式：<code>OT01[營養餐飲](10801)*62單位/月</code></p>
@@ -214,8 +214,8 @@
 </div>
 <div aria-live="polite" class="toast hidden" id="toast" role="status"></div>
 
-<script src="data.js?v=10.0"></script>
-<script src="config.js?v=10.0"></script>
-<script src="app.js?v=10.0"></script>
+<script src="data.js?v=10.1"></script>
+<script src="config.js?v=10.1"></script>
+<script src="app.js?v=10.1"></script>
 </body>
 </html>
