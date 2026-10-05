@@ -286,9 +286,17 @@ function confirmAndClear(label, hasData, clearFn, checkboxSelector) {
   }
   if (!confirm(`關閉「${label}」會清除已填資料，確定要關閉嗎？`)) {
     setCheckboxChecked(checkboxSelector, true);
+    const checkbox = $(checkboxSelector);
+    if (checkbox) checkbox.dataset.skipDirtyOnce = "1";
     return false;
   }
   clearFn();
+  return true;
+}
+
+function consumeSkipDirtyOnce(target) {
+  if (!target || target.dataset?.skipDirtyOnce !== "1") return false;
+  delete target.dataset.skipDirtyOnce;
   return true;
 }
 
@@ -686,6 +694,7 @@ function bind() {
   document.addEventListener("change", (e) => {
     if (!e.target.matches("input, textarea, select")) return;
     if (["outputText", "emailInput", "verificationCodeInput", "serviceSearch"].includes(e.target.id)) return;
+    if (consumeSkipDirtyOnce(e.target)) return;
     markDirty();
   });
   window.addEventListener("beforeunload", (e) => {
@@ -1272,8 +1281,9 @@ function executionMap(ai) {
   const items = Array.isArray(ai?.service_execution) ? ai.service_execution : [];
   items.forEach((x) => {
     const code = planClean(x?.code);
+    const key = code.toUpperCase();
     const note = planClean(x?.execution_note);
-    if (code && note && !m[code]) m[code] = note;
+    if (key && note && !m[key]) m[key] = note;
   });
   return m;
 }
@@ -1283,7 +1293,7 @@ function serviceLine(s, map) {
   const name = planClean(s.name);
   const quantity = planClean(s.qty);
   const base = `${code}[${name}]*${quantity}單位/月`;
-  const note = planClean(map[code]);
+  const note = planClean(map[code.toUpperCase()]);
   const schedule = serviceSchedule(s);
   if (schedule && note) return `${base}(${schedule}/${note})`;
   if (schedule) return `${base}(${schedule})`;
