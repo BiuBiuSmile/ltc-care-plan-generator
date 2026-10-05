@@ -2062,6 +2062,7 @@ async function copyOutput() {
 
 function updateModeBanner() {
   const b = $("#modeBanner");
+  if (!b) return;
   if (CONFIG.DEMO_MODE) {
     b.className = "mode-banner demo";
     b.innerHTML = "<strong>網頁測試版</strong><span>不連線照管平台；目前 AI 為示範模式，可先確認操作流程與產出格式。</span>";

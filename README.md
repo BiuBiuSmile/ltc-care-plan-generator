@@ -10,3 +10,8 @@
 
 部署：先更新 Cloudflare Worker v10.2，再將本資料夾全部檔案覆蓋 GitHub Pages repository 根目錄。
 Google Apps Script、既有 Secrets、D1 binding 不需重新設定。
+
+
+## v10.2.2 更新
+- 移除使用頁頂部「封閉測試／每位測試者共 10 次 AI 呼叫…」提示欄。
+- 其餘功能、登入、額度與 Worker API 邏輯均維持不變。
