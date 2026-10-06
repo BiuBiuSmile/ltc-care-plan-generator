@@ -9,7 +9,7 @@ const WEEKDAYS = [
 ];
 
 const state = {
-  filter: "all",
+  filter: "",
   query: "",
   items: [],
   aidItems: [],
@@ -46,6 +46,38 @@ const identityInfo = {
   "第二類（中低收入戶）": { rate: 5, key: "lowmid", label: "中低收入戶" },
   "第一類（長照低收入戶）": { rate: 0, key: null, label: "長照低收入戶" },
 };
+
+const DAYCARE_FULL_DAY_BY_CMS = {
+  "第2級": "BB01",
+  "第3級": "BB03",
+  "第4級": "BB05",
+  "第5級": "BB07",
+  "第6級": "BB09",
+  "第7級": "BB11",
+  "第8級": "BB13",
+};
+const DAYCARE_FULL_DAY_CODES = new Set(Object.values(DAYCARE_FULL_DAY_BY_CMS));
+const RESPITE_ANNUAL_LIMITS = {
+  "第2級": 32340,
+  "第3級": 32340,
+  "第4級": 32340,
+  "第5級": 32340,
+  "第6級": 32340,
+  "第7級": 48510,
+  "第8級": 48510,
+};
+
+function isBAServiceCode(code) {
+  return /^BA/i.test(String(code || ""));
+}
+
+function daycareCodeForCms(cms = currentCMS()) {
+  return DAYCARE_FULL_DAY_BY_CMS[cms] || "";
+}
+
+function respiteAnnualLimit(cms = currentCMS()) {
+  return Number(RESPITE_ANNUAL_LIMITS[cms] || 0);
+}
 
 function service(code) {
   return DATA.services.find((x) => x.code === code);
@@ -526,6 +558,7 @@ function init() {
     );
   });
   $("#cmsSelect").value = "";
+  if ($("#serviceCategorySelect")) $("#serviceCategorySelect").value = state.filter;
   renderRespite();
   bind();
   renderAll();
@@ -546,18 +579,44 @@ function bind() {
   });
   $("#cmsSelect").addEventListener("change", () => {
     syncForeignAmount();
+    syncDaycareForCms();
     renderBasic();
+    renderServices();
+    renderApproved();
     renderTotals();
+    renderDaycareAutoPanel();
+    renderRespiteSummary();
   });
   $("#serviceSearch").addEventListener("input", (e) => {
     state.query = e.target.value;
     renderServices();
   });
-  $$(".filter-chip").forEach((b) => b.addEventListener("click", () => {
-    state.filter = b.dataset.filter;
-    $$(".filter-chip").forEach((x) => x.classList.toggle("active", x === b));
+  $("#serviceCategorySelect")?.addEventListener("change", (e) => {
+    state.filter = e.target.value || "all";
     renderServices();
-  }));
+    renderDaycareAutoPanel();
+  });
+  $("#addDaycareBtn")?.addEventListener("click", () => {
+    const code = daycareCodeForCms();
+    if (!code) {
+      alert("請先選擇 CMS 等級，系統才會帶入對應日照型態。");
+      $("#cmsSelect").focus();
+      return;
+    }
+    if (item(code)) {
+      showToast(`${code} 已加入`);
+      return;
+    }
+    state.items.push({ code, weeklyEnabled: false, singleEnabled: false, weeklyQty: 0, singleQty: 0, qty: 0, days: [] });
+    markDirty();
+    state.filter = "daycare";
+    if ($("#serviceCategorySelect")) $("#serviceCategorySelect").value = "daycare";
+    renderServices();
+    renderApproved();
+    renderTotals();
+    renderDaycareAutoPanel();
+    showToast(`已加入 ${code} 對應日照服務`);
+  });
   $("#clearServicesBtn").addEventListener("click", () => {
     if (state.items.length && confirm("清除全部已選服務？")) {
       state.items = [];
@@ -610,6 +669,7 @@ function bind() {
     if (!e.target.matches('input[type="checkbox"][data-code]')) return;
     const anySelected = Boolean($("#respiteList").querySelector('input[type="checkbox"][data-code]:checked'));
     if (anySelected) $("#respiteEnabled").checked = true;
+    renderRespiteSummary();
   });
   $("#respiteList").addEventListener("input", (e) => {
     if (!e.target.matches(".respite-count")) return;
@@ -618,6 +678,7 @@ function bind() {
     const checkbox = $(`[data-code="${code}"]`);
     if (checkbox) checkbox.checked = true;
     $("#respiteEnabled").checked = true;
+    renderRespiteSummary();
   });
   $("#respiteEnabled").addEventListener("change", () => {
     if ($("#respiteEnabled").checked) return;
@@ -626,7 +687,9 @@ function bind() {
     confirmAndClear("喘息服務", selected || hasCounts, () => {
       $("#respiteList").querySelectorAll('input[type="checkbox"][data-code]').forEach((x) => { x.checked = false; });
       $("#respiteList").querySelectorAll(".respite-count").forEach((x) => { x.value = ""; });
+      renderRespiteSummary();
     }, "#respiteEnabled");
+    renderRespiteSummary();
   });
 
   ["#mealCount", "#mealUnit"].forEach((sel) => $(sel).addEventListener("input", () => {
@@ -642,13 +705,24 @@ function bind() {
 
   $("#foreignAmount").readOnly = true;
   $("#foreignEnabled").addEventListener("change", () => {
-    if (!$("#foreignEnabled").checked) {
+    if ($("#foreignEnabled").checked) {
+      if (!applyForeignCareLock(true)) {
+        syncForeignAmount();
+        renderBasic();
+        renderServices();
+        renderApproved();
+        renderTotals();
+        return;
+      }
+    } else {
       confirmAndClear("聘用外籍看護 30% 額度", hasTextValue("#foreignAmount"), () => {
         $("#foreignAmount").value = "";
       }, "#foreignEnabled");
     }
     syncForeignAmount();
     renderBasic();
+    renderServices();
+    renderApproved();
     renderTotals();
   });
 
@@ -710,6 +784,8 @@ function renderAll() {
   renderApproved();
   renderTotals();
   renderAidItems();
+  renderDaycareAutoPanel();
+  renderRespiteSummary();
 }
 
 function renderBasic() {
@@ -725,14 +801,27 @@ function renderBasic() {
 
 function filtered() {
   const q = state.query.trim().toLowerCase();
-  return DATA.services.filter(
-    (s) =>
-      (state.filter === "all" || s.group === state.filter) &&
-      (!q || s.code.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
-  );
+  const targetDaycare = daycareCodeForCms();
+  return DATA.services.filter((s) => {
+    // 未選類別時先保持乾淨；若使用搜尋，則直接跨類別搜尋。
+    if (!state.filter && !q) return false;
+    if (state.filter && state.filter !== "all" && s.group !== state.filter) return false;
+    if (q && !s.code.toLowerCase().includes(q) && !s.name.toLowerCase().includes(q)) return false;
+
+    // 全日型日照依 CMS 自動帶出，只顯示該 CMS 對應型態；未選 CMS 時先隱藏 BB 全日型。
+    if (DAYCARE_FULL_DAY_CODES.has(s.code)) {
+      if (!targetDaycare) return false;
+      if (s.code !== targetDaycare) return false;
+    }
+    return true;
+  });
 }
 
 function toggleService(code) {
+  if ($("#foreignEnabled")?.checked && isBAServiceCode(code) && !item(code)) {
+    alert("已勾選聘用外籍看護，依目前系統防呆規則不可再加入 BA 照顧服務。");
+    return;
+  }
   const old = item(code);
   if (old) state.items = state.items.filter((x) => x.code !== code);
   else state.items.push({ code, weeklyEnabled: false, singleEnabled: false, weeklyQty: 0, singleQty: 0, qty: 0, days: [] });
@@ -761,6 +850,7 @@ function renderServices() {
   filtered().forEach((s) => {
     const it = item(s.code);
     if (it) syncItemQty(it);
+    const lockedByForeign = Boolean($("#foreignEnabled")?.checked && isBAServiceCode(s.code));
     const weeklyEnabled = it ? weeklyEnabledOf(it) : false;
     const singleEnabled = it ? singleEnabledOf(it) : false;
     const storedWeekly = it ? storedWeeklyQtyOf(it) : 0;
@@ -776,12 +866,12 @@ function renderServices() {
           : "請先選擇計算方式";
 
     const card = document.createElement("article");
-    card.className = "service-card" + (it ? " selected" : "");
+    card.className = "service-card" + (it ? " selected" : "") + (lockedByForeign ? " disabled-rule" : "");
     card.innerHTML = `
-      <button class="service-main" type="button">
+      <button class="service-main" type="button"${lockedByForeign ? " disabled" : ""}>
         <div class="service-code">${s.code}</div>
-        <div><div class="service-name">${s.name}</div><div class="service-price">${money.format(s.amount)} 元／單位</div></div>
-        <span class="add-mark">${it ? "✓" : "＋"}</span>
+        <div><div class="service-name">${s.name}</div><div class="service-price">${money.format(s.amount)} 元／單位${lockedByForeign ? "｜外看防呆鎖定" : ""}</div></div>
+        <span class="add-mark">${lockedByForeign ? "🔒" : (it ? "✓" : "＋")}</span>
       </button>
       ${it ? `
       <div class="service-editor">
@@ -884,6 +974,8 @@ function renderServices() {
     el.appendChild(card);
   });
   $("#selectedCount").textContent = `${state.items.length} 項`;
+  $("#foreignCareLockHint")?.classList.toggle("hidden", !$("#foreignEnabled")?.checked);
+  renderDaycareAutoPanel();
 }
 
 function renderApproved() {
@@ -1004,18 +1096,10 @@ function updateFloatingSummary() {
 }
 
 function relocateStep3ForLayout() {
+  // v10.3：STEP 3 固定保留在主流程 STEP 2 後方，避免桌面版被搬到側欄後讓使用者誤以為 STEP 3 消失。
   const step3 = $("#step3");
   const serviceGrid = document.querySelector(".desktop-grid-services");
-  const sidebar = document.querySelector(".desktop-sidebar");
-  const nav = document.querySelector(".desktop-step-nav");
-  if (!step3 || !serviceGrid || !sidebar) return;
-
-  const desktop = window.matchMedia("(min-width: 1181px)").matches;
-  if (desktop) {
-    if (step3.parentElement !== sidebar) sidebar.insertBefore(step3, nav || sidebar.firstChild);
-  } else {
-    if (step3.parentElement !== serviceGrid) serviceGrid.appendChild(step3);
-  }
+  if (step3 && serviceGrid && step3.parentElement !== serviceGrid) serviceGrid.appendChild(step3);
 }
 
 function renderRespite() {
@@ -1024,9 +1108,89 @@ function renderRespite() {
   DATA.respite.forEach((r) => {
     const row = document.createElement("label");
     row.className = "respite-row";
-    row.innerHTML = `<input type="checkbox" data-code="${r.code}"><span><strong>${r.code}</strong>｜${r.name}</span><input class="input-control respite-count" data-count="${r.code}" type="number" min="1" step="1" placeholder="核定次數／單位">`;
+    row.innerHTML = `<input type="checkbox" data-code="${r.code}"><span><strong>${r.code}</strong>｜${r.name}<small>${money.format(r.amount)} 元／單位</small></span><input class="input-control respite-count" data-count="${r.code}" type="number" min="1" step="1" placeholder="核定次數／單位">`;
     el.appendChild(row);
   });
+  renderRespiteSummary();
+}
+
+
+function selectedRespiteCostFromDom() {
+  let total = 0;
+  DATA.respite.forEach((r) => {
+    const checkbox = $(`[data-code="${r.code}"]`);
+    const countInput = $(`[data-count="${r.code}"]`);
+    if (!checkbox?.checked) return;
+    const count = Number(countInput?.value || 0);
+    if (Number.isInteger(count) && count > 0) total += r.amount * count;
+  });
+  return total;
+}
+
+function renderRespiteSummary() {
+  const el = $("#respiteBudgetSummary");
+  if (!el) return;
+  const limit = respiteAnnualLimit();
+  if (!limit) {
+    el.className = "respite-budget-summary";
+    el.textContent = "請先選擇 CMS，系統會自動帶入年度喘息額度。";
+    return;
+  }
+  const used = selectedRespiteCostFromDom();
+  const remaining = limit - used;
+  el.className = "respite-budget-summary" + (remaining < 0 ? " over" : "");
+  el.innerHTML = `年度喘息額度 <strong>${money.format(limit)} 元</strong>｜目前配置 <strong>${money.format(used)} 元</strong>｜${remaining >= 0 ? `剩餘 <strong>${money.format(remaining)} 元</strong>` : `超出 <strong>${money.format(Math.abs(remaining))} 元</strong>`}`;
+}
+
+function renderDaycareAutoPanel() {
+  const panel = $("#daycareAutoPanel");
+  const text = $("#daycareAutoText");
+  const btn = $("#addDaycareBtn");
+  if (!panel || !text || !btn) return;
+  const code = daycareCodeForCms();
+  if (!code) {
+    panel.classList.add("hidden");
+    return;
+  }
+  const s = service(code);
+  panel.classList.remove("hidden");
+  text.textContent = s ? `${currentCMS()} → ${s.code}｜${s.name}` : `${currentCMS()} 對應 ${code}`;
+  btn.disabled = Boolean(item(code));
+  btn.textContent = item(code) ? "已加入" : "加入此日照服務";
+}
+
+function syncDaycareForCms() {
+  const targetCode = daycareCodeForCms();
+  if (!targetCode) return;
+  const idx = state.items.findIndex((it) => DAYCARE_FULL_DAY_CODES.has(it.code));
+  if (idx < 0) return;
+  const current = state.items[idx];
+  if (current.code === targetCode) return;
+  const oldCode = current.code;
+  state.items[idx] = { ...current, code: targetCode };
+  syncItemQty(state.items[idx]);
+  showToast(`CMS 已變更，日照型態由 ${oldCode} 自動調整為 ${targetCode}`);
+}
+
+function applyForeignCareLock(confirmRemoval = false) {
+  if (!$("#foreignEnabled")?.checked) return true;
+  const baItems = state.items.filter((it) => isBAServiceCode(it.code));
+  if (baItems.length && confirmRemoval) {
+    const codes = baItems.map((it) => it.code).join("、");
+    if (!confirm(`勾選「聘用外籍看護」後，BA 照顧服務將依目前防呆規則停用。\n\n目前已選：${codes}\n\n是否移除這些 BA 服務並繼續？`)) {
+      setCheckboxChecked("#foreignEnabled", false);
+      const checkbox = $("#foreignEnabled");
+      if (checkbox) checkbox.dataset.skipDirtyOnce = "1";
+      return false;
+    }
+  }
+  if (baItems.length) {
+    state.items = state.items.filter((it) => !isBAServiceCode(it.code));
+    markDirty();
+  }
+  const hint = $("#foreignCareLockHint");
+  if (hint) hint.classList.toggle("hidden", !$("#foreignEnabled")?.checked);
+  return true;
 }
 
 function renderAidItems() {
@@ -1054,6 +1218,7 @@ function selectedRespiteItems() {
     .map((r) => ({
       code: r.code,
       name: r.name,
+      amount: r.amount,
       approved: $(`[data-count="${r.code}"]`).value.trim(),
     }));
 }
@@ -1122,6 +1287,13 @@ function collect() {
   };
 }
 
+function revealField(selector) {
+  const el = $(selector);
+  const details = el?.closest("details.option-menu");
+  if (details) details.open = true;
+  return el;
+}
+
 function validate(data) {
   if (!data.identity) {
     alert("STEP 1 請先選擇身分別。");
@@ -1133,6 +1305,18 @@ function validate(data) {
     alert("STEP 1 請先選擇失能等級 CMS。");
     $("#cmsSelect").focus();
     $("#step1").scrollIntoView({ behavior: "smooth" });
+    return false;
+  }
+  if (data.professional_30_percent?.enabled && data.selected_services.some((s) => isBAServiceCode(s.code))) {
+    alert("已勾選聘用外籍看護，依目前系統防呆規則不可同時核定 BA 照顧服務。");
+    $("#step2").scrollIntoView({ behavior: "smooth" });
+    return false;
+  }
+  const expectedDaycareCode = daycareCodeForCms(data.cms_level);
+  const mismatchedDaycare = data.selected_services.find((s) => DAYCARE_FULL_DAY_CODES.has(s.code) && s.code !== expectedDaycareCode);
+  if (mismatchedDaycare) {
+    alert(`${data.cms_level} 對應的全日型日照服務應為 ${expectedDaycareCode}，目前選到 ${mismatchedDaycare.code}。請重新確認。`);
+    $("#step2").scrollIntoView({ behavior: "smooth" });
     return false;
   }
   const missing = [];
@@ -1154,18 +1338,15 @@ function validate(data) {
     $("#designatedUnit").focus();
     return false;
   }
-  if (data.unit_selection.mode === "rotation" && !data.unit_selection.rotation_unit) {
-    alert("已選擇「不指定服務單位」，請填寫輪派單位。");
-    $("#rotationUnit").focus();
-    return false;
-  }
   if (data.assistive_device.enabled && !data.assistive_device.items.length) {
     alert("已啟用輔具／居家無障礙環境改善服務，請至少新增一項輔具項目；若本次沒有申請，請關閉此項目。");
+    revealField("#aidEnabled");
     $("#step4").scrollIntoView({ behavior: "smooth" });
     return false;
   }
   if (data.respite.enabled && !data.respite.items.length) {
     alert("已啟用喘息服務，請至少勾選一項喘息服務（例如 GA09）。");
+    revealField("#respiteEnabled");
     $("#step4").scrollIntoView({ behavior: "smooth" });
     return false;
   }
@@ -1173,7 +1354,20 @@ function validate(data) {
     const approved = Number(r.approved);
     if (!Number.isInteger(approved) || approved <= 0) {
       alert(`已勾選 ${r.code} ${r.name}，核定次數／單位必須為大於 0 的整數。`);
-      $(`[data-count="${r.code}"]`).focus();
+      revealField(`[data-count="${r.code}"]`)?.focus();
+      return false;
+    }
+  }
+  if (data.respite.enabled) {
+    const annualLimit = respiteAnnualLimit(data.cms_level);
+    const annualUsed = data.respite.items.reduce((sum, r) => {
+      const meta = DATA.respite.find((x) => x.code === r.code);
+      return sum + (meta ? meta.amount * Number(r.approved || 0) : 0);
+    }, 0);
+    if (annualLimit && annualUsed > annualLimit) {
+      alert(`喘息服務年度額度已超出 ${money.format(annualUsed - annualLimit)} 元。\n\n${data.cms_level} 年度上限為 ${money.format(annualLimit)} 元，請調整喘息核定次數／單位。`);
+      revealField("#respiteEnabled");
+      $("#step4").scrollIntoView({ behavior: "smooth" });
       return false;
     }
   }
@@ -1181,7 +1375,7 @@ function validate(data) {
     const mealCount = Number(data.meal.count_per_month);
     if (!Number.isInteger(mealCount) || mealCount <= 0) {
       alert("已勾選餐飲服務，「餐／月」必須為大於 0 的整數。");
-      $("#mealCount").focus();
+      revealField("#mealCount")?.focus();
       return false;
     }
   }
@@ -1489,6 +1683,8 @@ function renderPlan(ai, d, interventionChange) {
   const rotationUnit = planClean(unit.rotation_unit);
   if (unitModeValue === "designated" && designatedUnit) lines.push(`(案家指定，照會單位：${designatedUnit})`);
   else if (unitModeValue === "rotation" && rotationUnit) lines.push(`(依輪派原則進行照會：${rotationUnit})`);
+  else if (unitModeValue === "rotation") lines.push("(依輪派原則進行照會)");
+  else if (unitModeValue === "pending") lines.push("(服務單位尚待照專／系統建置後確認)");
 
   const professionalTitleIndex = lines.length;
   lines.push(`${sectionNo++}.專業服務：`);
@@ -1702,6 +1898,8 @@ function runQualityChecks(ai, d, outputText, sourceText) {
   let expectedUnit = "";
   if (unit.mode === "designated" && planClean(unit.designated_unit)) expectedUnit = `(案家指定，照會單位：${planClean(unit.designated_unit)})`;
   if (unit.mode === "rotation" && planClean(unit.rotation_unit)) expectedUnit = `(依輪派原則進行照會：${planClean(unit.rotation_unit)})`;
+  if (unit.mode === "rotation" && !planClean(unit.rotation_unit)) expectedUnit = "(依輪派原則進行照會)";
+  if (unit.mode === "pending") expectedUnit = "(服務單位尚待照專／系統建置後確認)";
   if (expectedUnit && output.includes(expectedUnit)) push("pass", "服務單位", expectedUnit);
   else if (expectedUnit) push("error", "服務單位", `產出未找到正確照會單位：${expectedUnit}`);
 
@@ -2068,7 +2266,7 @@ function updateModeBanner() {
     b.innerHTML = "<strong>網頁測試版</strong><span>不連線照管平台；目前 AI 為示範模式，可先確認操作流程與產出格式。</span>";
   } else {
     b.className = "mode-banner live";
-    b.innerHTML = "<strong>封閉測試</strong><span>每位測試者共 10 次 AI 呼叫；完整產生與局部重寫各計 1 次。每週固定與單次／備用會合併計入月單位，服務碼、金額與照會單位仍由網頁固定。</span>";
+    b.innerHTML = "<strong>封閉測試</strong><span>服務防呆、日照 CMS 對應、派案彈性與喘息年度額度已啟用。</span>";
   }
 }
 
@@ -2076,6 +2274,8 @@ function loadSample() {
   resetAll(false);
   $("#identitySelect").value = "第三類（一般戶）";
   $("#cmsSelect").value = "第4級";
+  state.filter = "care";
+  if ($("#serviceCategorySelect")) $("#serviceCategorySelect").value = "care";
   ["BA02", "BA07", "BA20"].forEach((c, idx) => {
     const sample = {
       code: c,
@@ -2106,7 +2306,7 @@ function loadSample() {
 
 function resetAll(confirmFirst = true) {
   if (confirmFirst && !confirm("確定要清空目前資料嗎？")) return;
-  state.filter = "all";
+  state.filter = "";
   state.query = "";
   state.items = [];
   state.aidItems = [];
@@ -2119,7 +2319,9 @@ function resetAll(confirmFirst = true) {
   $("#interventionCustom").classList.add("hidden");
   $("#designatedUnit").disabled = true;
   $("#rotationUnit").disabled = true;
-  $$(".filter-chip").forEach((x) => x.classList.toggle("active", x.dataset.filter === "all"));
+  if ($("#serviceCategorySelect")) $("#serviceCategorySelect").value = "";
+  $$("#step4 details.option-menu").forEach((x) => { x.open = false; });
+  $("#foreignCareLockHint")?.classList.add("hidden");
   $("#charCount").textContent = "0 字";
   $("#charCount").classList.remove("danger-badge");
   $("#outputSection").classList.add("hidden");

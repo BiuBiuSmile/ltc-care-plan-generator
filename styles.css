@@ -176,3 +176,46 @@
   .desktop-grid-services { display: grid; grid-template-columns: 1fr; gap: 18px; }
   #step3 { position: static; }
 }
+
+
+/* ==========================================================
+   v10.3：個管實務流程優化
+   - STEP 2 改為服務類別選單；CMS 自動帶出全日型日照。
+   - STEP 3 固定保留在主流程，不再移到右側。
+   - STEP 4 改為收合式選單，減少一次顯示過多欄位。
+   - 外籍看護時鎖定 BA 照顧服務。
+   - 喘息服務顯示年度額度與剩餘額度。
+   ========================================================== */
+.service-menu-row{display:grid;grid-template-columns:minmax(220px,320px) minmax(0,1fr);gap:12px;align-items:end;margin:13px 0}
+.daycare-auto-panel{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 13px;border:1px solid #cfe0e7;border-radius:13px;background:#f1f7f9}
+.daycare-auto-panel .field-label{margin:0 0 3px;font-size:12px;color:var(--muted)}
+.daycare-auto-panel strong{display:block;color:var(--accent-dark);line-height:1.45}
+.rule-hint{margin:10px 0;padding:10px 12px;border-radius:12px;border:1px solid #e7c9a8;background:#fff8ed;color:#8a632b;font-size:13px;font-weight:800;line-height:1.55}
+.service-card.disabled-rule{opacity:.62;background:#f3f5f6;border-style:dashed}
+.service-card.disabled-rule .service-main{cursor:not-allowed}
+.service-card.disabled-rule .service-code{background:#e7ecef;color:#788a94}
+.service-card.disabled-rule .add-mark{font-size:18px}
+.option-menu{padding:0;overflow:hidden}
+.option-menu summary{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px;cursor:pointer;list-style:none;font-weight:900;background:#fbfdfe}
+.option-menu summary::-webkit-details-marker{display:none}
+.option-menu summary::after{content:"＋";font-size:20px;color:var(--accent);font-weight:900}
+.option-menu[open] summary{border-bottom:1px solid #e4edf0;background:#f4f9fb}
+.option-menu[open] summary::after{content:"－"}
+.option-menu summary span{margin-left:auto;color:var(--muted);font-size:12px;font-weight:700}
+.option-menu-body{padding:14px}
+.respite-budget-summary{margin:12px 0;padding:10px 12px;border-radius:12px;background:#eef6f8;border:1px solid #d5e5eb;color:#55718f;font-size:13px;line-height:1.55}
+.respite-budget-summary strong{color:var(--accent-dark)}
+.respite-budget-summary.over{background:#fff0f0;border-color:#e7c3c3;color:#a34a4a}
+.respite-budget-summary.over strong{color:#a34a4a}
+.respite-row span small{display:block;margin-top:3px;color:var(--muted);font-size:11px}
+#step3{position:static!important}
+@media(min-width:1181px){
+  .desktop-sidebar #step3{display:none}
+  .desktop-grid-services{display:grid!important;grid-template-columns:1fr!important;gap:18px}
+}
+@media(max-width:720px){
+  .service-menu-row{grid-template-columns:1fr}
+  .daycare-auto-panel{align-items:stretch;flex-direction:column}
+  .daycare-auto-panel button{width:100%}
+  .option-menu summary span{display:none}
+}
