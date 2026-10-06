@@ -181,7 +181,7 @@
 /* ==========================================================
    v10.3：個管實務流程優化
    - STEP 2 改為服務類別選單；CMS 自動帶出全日型日照。
-   - STEP 3 固定保留在主流程，不再移到右側。
+   - STEP 3 桌面版顯示於右側「填寫進度」下方；平板／手機保留在主流程。
    - STEP 4 改為收合式選單，減少一次顯示過多欄位。
    - 外籍看護時鎖定 BA 照顧服務。
    - 喘息服務顯示年度額度與剩餘額度。
@@ -210,7 +210,7 @@
 .respite-row span small{display:block;margin-top:3px;color:var(--muted);font-size:11px}
 #step3{position:static!important}
 @media(min-width:1181px){
-  .desktop-sidebar #step3{display:none}
+  .desktop-sidebar #step3{display:block}
   .desktop-grid-services{display:grid!important;grid-template-columns:1fr!important;gap:18px}
 }
 @media(max-width:720px){

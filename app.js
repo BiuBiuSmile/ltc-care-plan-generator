@@ -1096,7 +1096,7 @@ function updateFloatingSummary() {
 }
 
 function relocateStep3ForLayout() {
-  // v10.3.1：恢復 STEP 3 原本位置。桌面版放回右側欄；平板／手機仍維持在主流程中。
+  // v10.3.2：桌面版 STEP 3 固定顯示在右側「填寫進度」下方；平板／手機維持在主流程中。
   const step3 = $("#step3");
   const serviceGrid = document.querySelector(".desktop-grid-services");
   const sidebar = document.querySelector(".desktop-sidebar");
@@ -1105,7 +1105,10 @@ function relocateStep3ForLayout() {
 
   const desktop = window.matchMedia("(min-width: 1181px)").matches;
   if (desktop) {
-    if (step3.parentElement !== sidebar) sidebar.insertBefore(step3, nav || sidebar.firstChild);
+    if (step3.parentElement !== sidebar || step3.previousElementSibling !== nav) {
+      if (nav) nav.insertAdjacentElement("afterend", step3);
+      else sidebar.appendChild(step3);
+    }
   } else {
     if (step3.parentElement !== serviceGrid) serviceGrid.appendChild(step3);
   }
