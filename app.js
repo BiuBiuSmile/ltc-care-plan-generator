@@ -13,6 +13,7 @@ const state = {
   query: "",
   items: [],
   aidItems: [],
+  collapsedServices: new Set(),
   dirty: false,
 };
 
@@ -608,6 +609,7 @@ function bind() {
       return;
     }
     state.items.push({ code, weeklyEnabled: false, singleEnabled: false, weeklyQty: 0, singleQty: 0, qty: 0, days: [] });
+    state.collapsedServices.delete(code);
     markDirty();
     state.filter = "daycare";
     if ($("#serviceCategorySelect")) $("#serviceCategorySelect").value = "daycare";
@@ -620,6 +622,7 @@ function bind() {
   $("#clearServicesBtn").addEventListener("click", () => {
     if (state.items.length && confirm("清除全部已選服務？")) {
       state.items = [];
+      state.collapsedServices.clear();
       markDirty();
       renderServices();
       renderApproved();
@@ -753,6 +756,11 @@ function bind() {
   const floatingGoBtn = $("#floatingGoBtn");
   if (floatingGoBtn) floatingGoBtn.addEventListener("click", () => $("#step3").scrollIntoView({ behavior: "smooth" }));
   $("#mobileGoBtn").addEventListener("click", () => $("#step3").scrollIntoView({ behavior: "smooth" }));
+  $("#remainingDetailBtn")?.addEventListener("click", openBudgetDetail);
+  $("#budgetDetailCloseBtn")?.addEventListener("click", () => $("#budgetDetailDialog")?.close());
+  $("#budgetDetailDialog")?.addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) e.currentTarget.close();
+  });
   relocateStep3ForLayout();
   window.addEventListener("resize", relocateStep3ForLayout);
   $("#cancelGenerateBtn").addEventListener("click", () => {
@@ -823,8 +831,25 @@ function toggleService(code) {
     return;
   }
   const old = item(code);
-  if (old) state.items = state.items.filter((x) => x.code !== code);
-  else state.items.push({ code, weeklyEnabled: false, singleEnabled: false, weeklyQty: 0, singleQty: 0, qty: 0, days: [] });
+  if (old) {
+    // 已選服務再次點擊只做展開／收合，不再等同取消選取。
+    if (state.collapsedServices.has(code)) state.collapsedServices.delete(code);
+    else state.collapsedServices.add(code);
+    renderServices();
+    return;
+  }
+  state.items.push({ code, weeklyEnabled: false, singleEnabled: false, weeklyQty: 0, singleQty: 0, qty: 0, days: [] });
+  state.collapsedServices.delete(code);
+  markDirty();
+  renderServices();
+  renderApproved();
+  renderTotals();
+}
+
+function removeService(code) {
+  if (!item(code)) return;
+  state.items = state.items.filter((x) => x.code !== code);
+  state.collapsedServices.delete(code);
   markDirty();
   renderServices();
   renderApproved();
@@ -850,6 +875,7 @@ function renderServices() {
   filtered().forEach((s) => {
     const it = item(s.code);
     if (it) syncItemQty(it);
+    const collapsed = Boolean(it && state.collapsedServices.has(s.code));
     const lockedByForeign = Boolean($("#foreignEnabled")?.checked && isBAServiceCode(s.code));
     const weeklyEnabled = it ? weeklyEnabledOf(it) : false;
     const singleEnabled = it ? singleEnabledOf(it) : false;
@@ -868,12 +894,15 @@ function renderServices() {
     const card = document.createElement("article");
     card.className = "service-card" + (it ? " selected" : "") + (lockedByForeign ? " disabled-rule" : "");
     card.innerHTML = `
-      <button class="service-main" type="button"${lockedByForeign ? " disabled" : ""}>
-        <div class="service-code">${s.code}</div>
-        <div><div class="service-name">${s.name}</div><div class="service-price">${money.format(s.amount)} 元／單位${lockedByForeign ? "｜外看防呆鎖定" : ""}</div></div>
-        <span class="add-mark">${lockedByForeign ? "🔒" : (it ? "✓" : "＋")}</span>
-      </button>
-      ${it ? `
+      <div class="service-card-head">
+        <button class="service-main" type="button"${lockedByForeign ? " disabled" : ""} aria-expanded="${it ? String(!collapsed) : "false"}">
+          <div class="service-code">${s.code}</div>
+          <div><div class="service-name">${s.name}</div><div class="service-price">${money.format(s.amount)} 元／單位${lockedByForeign ? "｜外看防呆鎖定" : ""}${it ? `｜${collapsed ? "已收合" : "設定中"}` : ""}</div></div>
+          <span class="add-mark">${lockedByForeign ? "🔒" : (it ? `✓ <small>${collapsed ? "展開" : "收合"}</small>` : "＋")}</span>
+        </button>
+        ${it && !lockedByForeign ? `<button class="service-remove-btn" type="button" aria-label="取消選取 ${s.code} ${s.name}">取消</button>` : ""}
+      </div>
+      ${it && !collapsed ? `
       <div class="service-editor">
         <div class="calc-mode-switch multi-mode" role="group" aria-label="${s.code} 計算方式，可複選">
           <button type="button" class="calc-mode-btn${weeklyEnabled ? " active" : ""}" data-mode="weekly" aria-pressed="${weeklyEnabled}">每週計算</button>
@@ -913,7 +942,11 @@ function renderServices() {
       </div>` : ""}`;
 
     card.querySelector(".service-main").addEventListener("click", () => toggleService(s.code));
-    if (it) {
+    card.querySelector(".service-remove-btn")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeService(s.code);
+    });
+    if (it && !collapsed) {
       card.querySelectorAll(".calc-mode-btn").forEach((btn) => btn.addEventListener("click", (e) => {
         e.stopPropagation();
         toggleCalcMode(s.code, btn.dataset.mode);
@@ -1006,11 +1039,7 @@ function renderApproved() {
         <div class="approved-code">${s.code}｜${s.name}</div>
         <div class="approved-meta">${parts.join("｜")}｜本月合計 ${it.qty} 單位</div>
       </div>
-      <label class="approved-qty-field"><span>本月合計</span><input class="input-control qty-input" type="number" min="${fixedMonthly}" step="1" value="${it.qty}" title="核定月單位數"><small>固定 ${fixedMonthly} + 單次 ${singleQty}</small></label>
-      <div class="capacity-box approved-capacity-box">
-        <span class="capacity-title">目前額度還能增加</span>
-        <p class="capacity-hint" data-code="${s.code}">${capacityMarkup(s)}</p>
-      </div>`;
+      <label class="approved-qty-field"><span>本月合計</span><input class="input-control qty-input" type="number" min="${fixedMonthly}" step="1" value="${it.qty}" title="核定月單位數"><small>固定 ${fixedMonthly} + 單次 ${singleQty}</small></label>`;
     row.querySelector("input").addEventListener("input", (e) => {
       const requested = Math.max(fixedMonthly, Math.floor(Number(e.target.value) || 0));
       it.singleEnabled = true;
@@ -1027,6 +1056,62 @@ function renderApproved() {
   });
   updateFloatingSummary();
   updateCapacityHints();
+}
+
+function renderBudgetDetail() {
+  const body = $("#budgetDetailBody");
+  if (!body) return;
+  const t = calc();
+  const cms = currentCMS();
+  const identity = currentIdentity();
+  const ident = identityInfo[identity] || null;
+  const budget = cms ? effectiveBudget() : 0;
+  const baseBudget = cms ? Number(DATA.cms[cms] || 0) : 0;
+  const foreign = Boolean($("#foreignEnabled")?.checked);
+
+  const overview = `
+    <div class="budget-detail-overview">
+      <div><span>CMS 等級</span><strong>${cms ? escapeHtml(cms) : "尚未選擇"}</strong></div>
+      <div><span>本案可使用額度</span><strong>${cms ? `${money.format(budget)} 元` : "—"}</strong>${foreign && baseBudget ? `<small>原額度 ${money.format(baseBudget)} 元，外看 30%</small>` : ""}</div>
+      <div><span>已配置服務</span><strong>${money.format(t.total)} 元</strong></div>
+      <div><span>剩餘額度</span><strong class="${cms && t.remaining < 0 ? "budget-detail-over" : ""}">${cms ? `${t.remaining < 0 ? "超出 " : ""}${money.format(Math.abs(t.remaining))} 元` : "—"}</strong></div>
+      <div><span>額度使用率</span><strong>${cms ? `${t.usage.toFixed(1)}%` : "—"}</strong></div>
+      <div><span>預估部分負擔</span><strong>${ident ? `${money.format(t.burden)} 元` : "—"}</strong></div>
+    </div>`;
+
+  if (!state.items.length) {
+    body.innerHTML = `${overview}<div class="budget-detail-empty">目前尚未加入服務項目。</div>`;
+    return;
+  }
+
+  const rows = state.items.map((it) => {
+    syncItemQty(it);
+    const s = service(it.code);
+    if (!s) return "";
+    const info = getCapacityInfo(s);
+    const cost = Number(s.amount || 0) * Number(it.qty || 0);
+    let capacityText = "";
+    if (!cms) capacityText = "請先選擇 CMS";
+    else if (info.remaining <= 0) capacityText = info.remaining < 0 ? "目前已超額，暫無可增加量" : "目前額度已用完";
+    else if (info.additionalUnits <= 0) capacityText = "剩餘額度不足再增加 1 單位";
+    else capacityText = `單次最多 +${info.additionalUnits} 單位${info.additionalWeeklyQty > 0 ? `｜每週約 +${info.additionalWeeklyQty} 次` : ""}`;
+    return `
+      <div class="budget-detail-item">
+        <div><strong>${escapeHtml(s.code)}｜${escapeHtml(s.name)}</strong><span>${it.qty} 單位 × ${money.format(s.amount)} 元</span></div>
+        <div class="budget-detail-item-cost">${money.format(cost)} 元</div>
+        <div class="budget-detail-capacity">${escapeHtml(capacityText)}</div>
+      </div>`;
+  }).join("");
+
+  body.innerHTML = `${overview}<div class="budget-detail-section-title">服務明細</div><p class="budget-detail-note">下列「可增加量」是假設將目前全部剩餘額度用於單一服務的估算。</p><div class="budget-detail-items">${rows}</div>`;
+}
+
+function openBudgetDetail() {
+  renderBudgetDetail();
+  const dialog = $("#budgetDetailDialog");
+  if (!dialog) return;
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
 }
 
 function renderTotals() {
@@ -2321,6 +2406,7 @@ function resetAll(confirmFirst = true) {
   state.filter = "";
   state.query = "";
   state.items = [];
+  state.collapsedServices.clear();
   state.aidItems = [];
   document.querySelectorAll("input[type=text],input[type=number],input[type=search],textarea").forEach((x) => x.value = "");
   document.querySelectorAll("input[type=checkbox],input[type=radio]").forEach((x) => x.checked = false);

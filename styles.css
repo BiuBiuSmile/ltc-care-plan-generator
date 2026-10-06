@@ -219,3 +219,58 @@
   .daycare-auto-panel button{width:100%}
   .option-menu summary span{display:none}
 }
+
+
+/* ==========================================================
+   v10.3.3：服務卡收合＋STEP 3 額度明細視窗
+   ========================================================== */
+.service-card-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch}
+.service-card-head .service-main{min-width:0}
+.service-card.selected .service-main{border-radius:0}
+.service-card-head .add-mark{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.service-card-head .add-mark small{font-size:10px;font-weight:800;color:var(--muted)}
+.service-remove-btn{border:0;border-left:1px solid #e5edf0;background:#fff7f6;color:var(--danger);padding:0 12px;font-size:12px;font-weight:900;cursor:pointer;min-width:54px}
+.service-remove-btn:hover{background:#ffeceb}
+.service-card.selected .service-card-head{background:#fbfdfe}
+.service-card.selected .service-price{line-height:1.45}
+
+/* STEP 3 僅保留必要資訊；額度增加量移至明細視窗。 */
+.remaining-detail-trigger{width:100%;border:0;background:transparent;color:inherit;padding:7px 0;margin:0;align-items:center;text-align:left;cursor:pointer;border-radius:10px}
+.remaining-detail-trigger:hover{background:rgba(255,255,255,.10)}
+.remaining-detail-trigger:focus-visible{outline:2px solid rgba(255,255,255,.75);outline-offset:2px}
+.remaining-detail-trigger span small{display:block;margin-top:2px;font-size:10px;font-weight:700;opacity:.76}
+
+.budget-detail-dialog{width:min(760px,calc(100vw - 28px));max-height:min(82vh,820px);border:0;border-radius:22px;padding:0;background:transparent;color:var(--text);box-shadow:0 28px 80px rgba(34,66,84,.26)}
+.budget-detail-dialog::backdrop{background:rgba(29,48,60,.42);backdrop-filter:blur(2px)}
+.budget-detail-shell{background:#f8fbfc;border:1px solid var(--border);border-radius:22px;overflow:hidden}
+.budget-detail-head{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:18px 20px;border-bottom:1px solid #dfe9ed;background:#f3f8fa}
+.budget-detail-head h2{margin:4px 0 0;font-size:21px}
+.dialog-close-button{width:38px;height:38px;border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--text);font-size:24px;line-height:1;cursor:pointer}
+.budget-detail-body{padding:18px 20px 22px;overflow:auto;max-height:calc(82vh - 78px)}
+.budget-detail-overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.budget-detail-overview>div{padding:12px;border:1px solid #dce8ec;border-radius:14px;background:#fff;min-width:0}
+.budget-detail-overview span,.budget-detail-overview small{display:block;color:var(--muted);font-size:11px;font-weight:800}
+.budget-detail-overview strong{display:block;margin-top:5px;font-size:18px;overflow-wrap:anywhere}
+.budget-detail-overview small{margin-top:4px;line-height:1.4}
+.budget-detail-over{color:var(--danger)!important}
+.budget-detail-section-title{margin:18px 0 5px;font-weight:900;color:var(--accent-dark)}
+.budget-detail-note{margin:0 0 9px;color:var(--muted);font-size:11px;line-height:1.5}
+.budget-detail-items{display:grid;gap:8px}
+.budget-detail-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 12px;padding:12px 13px;border:1px solid #dfe9ed;border-radius:14px;background:#fff;align-items:center}
+.budget-detail-item>div:first-child{min-width:0}
+.budget-detail-item strong{display:block;overflow-wrap:anywhere}
+.budget-detail-item span{display:block;margin-top:3px;color:var(--muted);font-size:12px}
+.budget-detail-item-cost{font-weight:900;color:var(--accent-dark);white-space:nowrap}
+.budget-detail-capacity{grid-column:1 / -1;padding-top:6px;border-top:1px dashed #e3ecef;color:#607985;font-size:12px;font-weight:700}
+.budget-detail-empty{margin-top:14px;padding:18px;border:1px dashed var(--border);border-radius:14px;text-align:center;color:var(--muted)}
+
+@media(max-width:720px){
+  .service-card-head{grid-template-columns:minmax(0,1fr) 58px}
+  .service-remove-btn{padding:0 8px}
+  .budget-detail-overview{grid-template-columns:1fr 1fr}
+  .budget-detail-body{padding:14px}
+  .budget-detail-head{padding:15px 16px}
+}
+@media(max-width:440px){
+  .budget-detail-overview{grid-template-columns:1fr}
+}

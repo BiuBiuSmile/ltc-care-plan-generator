@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="robots" content="noindex,nofollow"/>
 <meta name="theme-color" content="#648da7"/>
-<meta name="description" content="個管照顧計畫產生器 v10.3.2：服務選單、防呆、派案與喘息額度優化，STEP 3 顯示於桌面右側「填寫進度」下方。"/>
+<meta name="description" content="個管照顧計畫產生器 v10.3.3：服務卡可收合、取消選取獨立操作，STEP 3 精簡並可點擊剩餘額度查看完整明細。"/>
 <title>個管照顧計畫產生器｜使用頁</title>
 <link href="icon.png" rel="icon" type="image/png"/>
-<link href="styles.css?v=10.3.1" rel="stylesheet"/>
+<link href="styles.css?v=10.3.3" rel="stylesheet"/>
 </head>
 <body>
 <div class="app-shell hidden" id="appRoot">
 <header class="topbar">
 <div>
-<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v10.3.2 流程優化版</span>
+<p class="eyebrow">長照個管工具</p><span class="desktop-version-badge">v10.3.3 精簡介面版</span>
 <h1>個管照顧計畫產生器</h1>
 <p class="subtitle">先選好服務，再貼上照專計畫簡述；系統會先做服務資料防呆，AI 完成後可局部重寫、直接編輯，並保留 AI 原稿供復原與重新檢核。</p>
 </div>
@@ -72,7 +72,7 @@
 </div>
 <div class="rule-hint hidden" id="foreignCareLockHint">已勾選聘用外籍看護，照顧服務 BA 碼依目前防呆規則暫停選用。</div>
 <div class="service-list" id="serviceList"></div>
-<p class="helper service-calc-help">每項服務可切換「每週計算」與「單次計算」，兩種方式可同時選擇；系統會自動合併本月單位數，並顯示目前剩餘額度還能增加多少。</p>
+<p class="helper service-calc-help">每項服務可切換「每週計算」與「單次計算」；選好後再次點擊服務卡即可收合，資料會保留，需取消時請按卡片右側「取消」。</p>
 </section><section class="card" id="step3">
 <div class="section-heading"><div><p class="step">STEP 3</p><h2>已選服務與額度</h2></div><button class="text-button" id="clearServicesBtn" type="button">清除服務</button></div>
 <div class="approved-list empty-state" id="approvedList">尚未加入服務項目</div>
@@ -81,7 +81,7 @@
 <div class="result-row"><span>預估部分負擔</span><strong><span id="copayTotal">0</span> 元</strong></div>
 <div class="result-row"><span>額度使用率</span><strong id="budgetUsage">0%</strong></div>
 <div class="result-divider"></div>
-<div class="result-row large"><span>剩餘額度</span><strong id="remainingAmount">0 元</strong></div>
+<button class="result-row large remaining-detail-trigger" id="remainingDetailBtn" type="button" aria-haspopup="dialog" aria-controls="budgetDetailDialog"><span>剩餘額度 <small>查看明細</small></span><strong id="remainingAmount">0 元</strong></button>
 <div class="progress-track"><div class="progress-bar" id="budgetProgress" style="width:0%"></div></div>
 <p class="budget-hint" id="budgetHint">目前尚未使用核定額度。</p>
 </section>
@@ -232,6 +232,17 @@
 
 </main>
 
+
+<dialog class="budget-detail-dialog" id="budgetDetailDialog" aria-labelledby="budgetDetailTitle">
+  <div class="budget-detail-shell">
+    <div class="budget-detail-head">
+      <div><p class="step">額度明細</p><h2 id="budgetDetailTitle">本月額度使用狀況</h2></div>
+      <button class="dialog-close-button" id="budgetDetailCloseBtn" type="button" aria-label="關閉額度明細">×</button>
+    </div>
+    <div id="budgetDetailBody" class="budget-detail-body"></div>
+  </div>
+</dialog>
+
 <div class="mobile-summary" id="mobileSummary">
 <div><strong id="mobileCount">0 項服務</strong><span id="mobileTotal">0 元</span></div>
 <button id="mobileGoBtn" type="button">查看</button>
@@ -247,8 +258,8 @@
 </div>
 <div aria-live="polite" class="toast hidden" id="toast" role="status"></div>
 
-<script src="data.js?v=10.3.1"></script>
-<script src="config.js?v=10.3.1"></script>
-<script src="app.js?v=10.3.1"></script>
+<script src="data.js?v=10.3.3"></script>
+<script src="config.js?v=10.3.3"></script>
+<script src="app.js?v=10.3.3"></script>
 </body>
 </html>
