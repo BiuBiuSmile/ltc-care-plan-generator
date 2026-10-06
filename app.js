@@ -1096,10 +1096,19 @@ function updateFloatingSummary() {
 }
 
 function relocateStep3ForLayout() {
-  // v10.3：STEP 3 固定保留在主流程 STEP 2 後方，避免桌面版被搬到側欄後讓使用者誤以為 STEP 3 消失。
+  // v10.3.1：恢復 STEP 3 原本位置。桌面版放回右側欄；平板／手機仍維持在主流程中。
   const step3 = $("#step3");
   const serviceGrid = document.querySelector(".desktop-grid-services");
-  if (step3 && serviceGrid && step3.parentElement !== serviceGrid) serviceGrid.appendChild(step3);
+  const sidebar = document.querySelector(".desktop-sidebar");
+  const nav = document.querySelector(".desktop-step-nav");
+  if (!step3 || !serviceGrid || !sidebar) return;
+
+  const desktop = window.matchMedia("(min-width: 1181px)").matches;
+  if (desktop) {
+    if (step3.parentElement !== sidebar) sidebar.insertBefore(step3, nav || sidebar.firstChild);
+  } else {
+    if (step3.parentElement !== serviceGrid) serviceGrid.appendChild(step3);
+  }
 }
 
 function renderRespite() {
